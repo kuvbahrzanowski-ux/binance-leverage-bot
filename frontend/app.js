@@ -13,7 +13,16 @@ if (apiParam) {
   window.history.replaceState({}, document.title, window.location.pathname);
 }
 
-const API = savedAPI || `http://${location.hostname}:8000`;
+const DEFAULT_PROD_API = "https://binance-leverage-bot-backend.onrender.com";
+
+let fallbackAPI = `http://${location.hostname}:8000`;
+if (location.hostname.includes("vercel.app")) {
+  fallbackAPI = DEFAULT_PROD_API;
+} else if (location.hostname !== "localhost" && location.hostname !== "127.0.0.1" && !location.port) {
+  fallbackAPI = location.origin;
+}
+
+const API = savedAPI || fallbackAPI;
 const WS_URL = API.startsWith('https') 
   ? API.replace('https://', 'wss://') + '/ws/live'
   : API.replace('http://', 'ws://') + '/ws/live';
