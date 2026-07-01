@@ -16,6 +16,10 @@ DATABASE_URL       = os.getenv("DATABASE_URL", "sqlite:///data/bot.db")
 if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
+# Force connection pooler (IPv4) for Supabase project to avoid Render IPv6 limitation
+if "db.qtfwkxmtrfchgmkxaduu.supabase.co" in DATABASE_URL:
+    DATABASE_URL = "postgresql://postgres.qtfwkxmtrfchgmkxaduu:S95CVcjViCTfR7nk@aws-0-eu-west-3.pooler.supabase.com:6543/postgres"
+
 # ── Handel ───────────────────────────────────────────────────
 TRADING_MODE       = os.getenv("TRADING_MODE", "SIGNAL_ONLY")   # SIGNAL_ONLY | AUTO_TRADE
 MAX_POSITION_USDT  = float(os.getenv("MAX_POSITION_USDT", "100"))
