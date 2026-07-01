@@ -15,10 +15,17 @@ from config import DATABASE_URL
 
 logger = logging.getLogger(__name__)
 
+import os
+
 # Connect parameters: check_same_thread is SQLite-only
 connect_args = {}
 if DATABASE_URL.startswith("sqlite"):
     connect_args["check_same_thread"] = False
+    # Automatycznie stworz folder dla bazy SQLite, jesli nie istnieje
+    db_file = DATABASE_URL.replace("sqlite:///", "")
+    db_dir = os.path.dirname(db_file)
+    if db_dir and not os.path.exists(db_dir):
+        os.makedirs(db_dir, exist_ok=True)
 
 engine = create_engine(DATABASE_URL, connect_args=connect_args)
 

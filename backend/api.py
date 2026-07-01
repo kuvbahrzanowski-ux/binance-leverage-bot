@@ -33,6 +33,9 @@ from risk_manager import risk_manager
 from binance_client import client
 from ml_engine import ml_engine
 
+# Upewnij się, że folder logów i danych istnieje
+os.makedirs("data", exist_ok=True)
+
 # ── Logging ───────────────────────────────────────────────────
 logging.basicConfig(
     level=logging.INFO,
