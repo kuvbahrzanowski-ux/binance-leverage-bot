@@ -491,7 +491,36 @@ function handleMsg(m) {
       set('lv-last', f.t(m.last_update));
       set('ftr-last', f.t(m.last_update));
       if (m.ml_status) applyMLStatus(m.ml_status);
+      if (m.wallet_balance !== undefined) {
+        applyWalletData({ balance_usdt: m.wallet_balance });
+      }
       break;
+
+    case 'WALLET_UPDATE':
+      applyWalletData(m.payload);
+      renderWalletHistory();
+      break;
+
+    case 'MONITORING_START': {
+      const p = m.payload;
+      toast(
+        `🔍 Monitorowanie ${p.direction} ${p.symbol.replace('USDT','')}`,
+        `Wykryto silny score ${p.score}/100. Oczekiwanie na potwierdzenie świecy 15m...`,
+        'blue', 7000
+      );
+      break;
+    }
+
+    case 'SIGNAL_EXPIRED': {
+      const p = m.payload;
+      toast(
+        `❌ Anulowano trend ${p.symbol.replace('USDT','')}`,
+        `Brak potwierdzenia kierunku ceny w 15m. Sygnał wygasł.`,
+        'gray', 5000
+      );
+      fetchSigs();
+      break;
+    }
 
     case 'NEW_SIGNAL': {
       const a = m.payload;
@@ -690,6 +719,7 @@ async function fetchSigs() {
   try {
     const d = await fetch(`${API}/api/signals?limit=50`).then(r=>r.json());
     renderSigs(d); drawWrChart(d);
+    renderWalletHistory();
   } catch(e){}
 }
 
@@ -758,13 +788,111 @@ async function init() {
 function switchView(view) {
   document.getElementById('view-dashboard').classList.toggle('hidden', view !== 'dashboard');
   document.getElementById('view-ml').classList.toggle('hidden', view !== 'ml');
+  document.getElementById('view-wallet').classList.toggle('hidden', view !== 'wallet');
   
   document.getElementById('nav-dashboard').classList.toggle('active-signal', view === 'dashboard');
   document.getElementById('nav-ml').classList.toggle('active-signal', view === 'ml');
+  document.getElementById('nav-wallet').classList.toggle('active-signal', view === 'wallet');
   
   if (view === 'ml') {
     fetchMLStatus();
+  } else if (view === 'wallet') {
+    fetchWalletData();
   }
+}
+
+async function fetchWalletData() {
+  try {
+    const data = await fetch(`${API}/api/wallet`).then(r => r.json());
+    applyWalletData(data);
+    renderWalletHistory();
+  } catch (e) {}
+}
+
+function applyWalletData(data) {
+  if (!data) return;
+  const bal = Number(data.balance_usdt || 1000).toFixed(2);
+  set('wallet-balance-val', '$' + bal);
+  set('ftr-bal', '$' + bal);
+}
+
+async function quickDeposit(amount) {
+  try {
+    const res = await fetch(`${API}/api/wallet/deposit`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ amount: amount })
+    }).then(r => r.json());
+    if (res.status === 'success') {
+      applyWalletData(res);
+      renderWalletHistory();
+    }
+  } catch (e) {}
+}
+
+async function manualDeposit() {
+  const input = document.getElementById('deposit-amount-input');
+  if (!input) return;
+  const amount = parseFloat(input.value);
+  if (!amount || amount <= 0) {
+    alert('Podaj poprawną kwotę większą od 0.');
+    return;
+  }
+  try {
+    const res = await fetch(`${API}/api/wallet/deposit`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ amount: amount })
+    }).then(r => r.json());
+    if (res.status === 'success') {
+      applyWalletData(res);
+      renderWalletHistory();
+      input.value = '';
+    }
+  } catch (e) {}
+}
+
+function renderWalletHistory() {
+  const feed = document.getElementById('wallet-history-feed');
+  if (!feed) return;
+  
+  // Pobierz skończone sygnały z globalnej tablicy allSigs
+  const closedSignals = (typeof allSigs !== 'undefined' ? allSigs : []).filter(s => s.status === 'WIN' || s.status === 'LOSS');
+  
+  if (closedSignals.length === 0) {
+    feed.innerHTML = '<div class="empty">Brak historii transakcji...</div>';
+    return;
+  }
+  
+  // Posortuj od najnowszych
+  closedSignals.sort((a,b) => new Date(b.resolved_at || b.created_at) - new Date(a.resolved_at || a.created_at));
+  
+  feed.innerHTML = closedSignals.map(s => {
+    // 100 USDT position size, calculate PnL in USDT
+    const pnlUsdt = 100 * ((s.pnl_pct || 0) / 100);
+    const sign = pnlUsdt >= 0 ? '+' : '';
+    const col = pnlUsdt >= 0 ? 'var(--green-400)' : 'var(--red-400)';
+    const bgCol = pnlUsdt >= 0 ? 'rgba(0,192,115,0.06)' : 'rgba(255,101,101,0.06)';
+    const borderCol = pnlUsdt >= 0 ? 'rgba(0,192,115,0.12)' : 'rgba(255,101,101,0.12)';
+    
+    return `
+      <div style="background: ${bgCol}; border: 1px solid ${borderCol}; border-radius: 8px; padding: 0.85rem; display: flex; justify-content: space-between; align-items: center;">
+        <div>
+          <div style="font-weight: 700; font-size: 0.8rem; color: var(--text-1); display: flex; align-items: center; gap: 6px;">
+            <span style="color: ${col}">${s.direction}</span> ${s.symbol.replace('USDT','')}
+            <span style="font-size: 0.65rem; background: rgba(255,255,255,0.06); padding: 2px 6px; border-radius: 4px; color: var(--text-3); font-weight: normal;">${s.leverage}x</span>
+          </div>
+          <div style="font-size: 0.65rem; color: var(--text-3); margin-top: 4px;">
+            Wejście: ${s.entry_price.toFixed(2)} · Wyjście: ${(s.result_price || s.entry_price).toFixed(2)}
+          </div>
+        </div>
+        <div style="text-align: right;">
+          <div style="font-family: var(--mono); font-weight: 800; font-size: 0.95rem; color: ${col}">${sign}${pnlUsdt.toFixed(2)} USDT</div>
+          <div style="font-size: 0.6rem; color: var(--text-3); margin-top: 2px;">${sign}${s.pnl_pct.toFixed(2)}% P&L</div>
+        </div>
+      </div>
+    `;
+  }).join('');
 }
 
 async function fetchMLStatus() {

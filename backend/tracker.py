@@ -5,7 +5,7 @@ import logging
 from datetime import datetime, timezone, timedelta
 from typing import Optional
 
-from database import Signal, Trade, DailyStats, get_session
+from database import Signal, Trade, DailyStats, get_session, VirtualWallet
 from binance_client import client
 
 logger = logging.getLogger(__name__)
@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 class Tracker:
     """Zapisuje sygnaly i aktualizuje ich wynik (WIN/LOSS)."""
 
-    def save_signal(self, analysis: dict) -> int:
+    def save_signal(self, analysis: dict, status: str = "PENDING") -> int:
         """Zapisuje nowy sygnal do bazy. Zwraca ID."""
         with get_session() as session:
             sig = Signal(
@@ -30,7 +30,7 @@ class Tracker:
                 funding_rate = analysis.get("funding_rate", 0.0),
                 reasons     = analysis.get("reasons", []),
                 indicators  = analysis.get("indicators", {}),
-                status      = "PENDING",
+                status      = status,
             )
             session.add(sig)
             session.commit()
@@ -102,7 +102,7 @@ class Tracker:
             session.commit()
 
     def _resolve_signal(self, session, sig: Signal, status: str, result_price: float):
-        """Ustawia wynik sygnalu."""
+        """Ustawia wynik sygnalu i aktualizuje wirtualny portfel."""
         sig.status      = status
         sig.result_price = result_price
         sig.resolved_at  = datetime.now(timezone.utc)
@@ -113,6 +113,23 @@ class Tracker:
             pnl_pct = ((sig.entry_price - result_price) / sig.entry_price) * 100 * sig.leverage
 
         sig.pnl_pct = round(pnl_pct, 4)
+        
+        # Oblicz zysk/strate w USDT na podstawie wielkosci pozycji (MAX_POSITION_USDT)
+        from config import MAX_POSITION_USDT
+        pnl_usdt = MAX_POSITION_USDT * (pnl_pct / 100.0)
+        
+        # Zaktualizuj saldo wirtualnego portfela
+        try:
+            wallet = session.query(VirtualWallet).first()
+            if not wallet:
+                wallet = VirtualWallet(balance_usdt=1000.0)
+                session.add(wallet)
+            wallet.balance_usdt += pnl_usdt
+            wallet.updated_at = datetime.now(timezone.utc)
+            logger.info(f"Portfel zaktualizowany: PnL USDT: {pnl_usdt:+.2f}$, Saldo: {wallet.balance_usdt:.2f}$")
+        except Exception as e:
+            logger.error(f"Blad aktualizacji wirtualnego salda: {e}")
+
         session.commit()
         logger.info(f"Signal {sig.id} {sig.symbol} {status}  PnL: {sig.pnl_pct:.2f}%")
 

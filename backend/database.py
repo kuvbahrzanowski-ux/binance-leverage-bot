@@ -112,10 +112,31 @@ class DailyStats(Base):
     max_drawdown  = Column(Float,   default=0.0)
 
 
+class VirtualWallet(Base):
+    """Wirtualny portfel tradera."""
+    __tablename__ = "virtual_wallet"
+
+    id          = Column(Integer, primary_key=True, autoincrement=True)
+    balance_usdt = Column(Float, default=1000.0)
+    updated_at  = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
 def init_db():
     """Tworzy tabele jesli nie istnieja."""
     Base.metadata.create_all(engine)
     logger.info("Baza danych zainicjalizowana")
+    
+    # Inicjalizacja salda poczatkowego wirtualnego portfela
+    try:
+        with Session(engine) as session:
+            wallet = session.query(VirtualWallet).first()
+            if not wallet:
+                wallet = VirtualWallet(balance_usdt=1000.0)
+                session.add(wallet)
+                session.commit()
+                logger.info("Utworzono wirtualny portfel z saldem poczatkowym 1000 USDT")
+    except Exception as e:
+        logger.error(f"Blad inicjalizacji portfela: {e}")
 
 
 def get_session() -> Session:

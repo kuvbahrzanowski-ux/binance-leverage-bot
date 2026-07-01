@@ -25,7 +25,7 @@ from config import (
     HOST, PORT, SYMBOLS, ANALYZE_INTERVAL_SEC,
     SIGNAL_THRESHOLD, DEFAULT_LEVERAGE, TRADING_MODE
 )
-from database import init_db
+from database import init_db, get_session, VirtualWallet
 from signal_engine import analyze_all, analyze_symbol
 from tracker import tracker
 from order_manager import order_manager
@@ -104,23 +104,97 @@ async def run_analysis():
         state["last_analyses"][symbol] = a
         state["last_update"] = datetime.now(timezone.utc).isoformat()
 
-        # Zapisz sygnal do bazy jezeli przekracza prog
-        if a["score"] >= SIGNAL_THRESHOLD:
-            sig_id = tracker.save_signal(a)
-            a["signal_id"] = sig_id
-            logger.info(f"🎯 Sygnal {a['direction']} {symbol}  score={a['score']}")
+        # Sprawdź, czy dla tego symbolu istnieje aktywny sygnał monitorowany w bazie
+        monitoring_sig = None
+        try:
+            with get_session() as session:
+                monitoring_sig = session.query(Signal).filter(
+                    Signal.symbol == symbol,
+                    Signal.status == "MONITORING"
+                ).order_by(Signal.created_at.desc()).first()
+        except Exception as e:
+            logger.error(f"Błąd sprawdzania statusu monitorowania dla {symbol}: {e}")
 
-            # Powiadomienie przez WebSocket
-            await ws_manager.broadcast({
-                "type":    "NEW_SIGNAL",
-                "payload": a,
-            })
+        if monitoring_sig:
+            # Sprawdzamy czy trend został potwierdzony
+            indicators = a.get("indicators", {})
+            open_p = indicators.get("open", 0)
+            close_p = indicators.get("close", 0)
+            is_confirmed = False
 
-            # AUTO TRADE z odliczaniem
-            if state["trading_mode"] == "AUTO_TRADE" and not risk_manager.is_paused:
-                asyncio.create_task(
-                    auto_trade_countdown(a, sig_id)
-                )
+            if monitoring_sig.direction == "LONG":
+                # Dla LONG: Świeca zamknęła się wzrostowo (close > open) i score wciąż >= SIGNAL_THRESHOLD
+                if close_p > open_p and a["score"] >= SIGNAL_THRESHOLD:
+                    is_confirmed = True
+            elif monitoring_sig.direction == "SHORT":
+                # Dla SHORT: Świeca zamknęła się spadkowo (close < open) i score wciąż >= SIGNAL_THRESHOLD
+                if close_p < open_p and a["score"] >= SIGNAL_THRESHOLD:
+                    is_confirmed = True
+
+            if is_confirmed:
+                # Potwierdzony! Zmieniamy status z MONITORING na PENDING (aktywny) i wchodzimy
+                try:
+                    with get_session() as session:
+                        db_sig = session.query(Signal).filter(Signal.id == monitoring_sig.id).first()
+                        if db_sig:
+                            db_sig.status = "PENDING"
+                            db_sig.created_at = datetime.now(timezone.utc)  # odświeżamy czas
+                            session.commit()
+                            
+                            a["signal_id"] = db_sig.id
+                            logger.info(f"🎯 POTWIERDZONO SYGNAŁ {db_sig.direction} {symbol}! Zmiana statusu na PENDING.")
+
+                            # Powiadomienie przez WebSocket o aktywacji sygnału
+                            await ws_manager.broadcast({
+                                "type":    "NEW_SIGNAL",
+                                "payload": a,
+                            })
+
+                            # AUTO TRADE z odliczaniem
+                            if state["trading_mode"] == "AUTO_TRADE" and not risk_manager.is_paused:
+                                asyncio.create_task(
+                                    auto_trade_countdown(a, db_sig.id)
+                                )
+                except Exception as e:
+                    logger.error(f"Błąd aktywacji sygnału z monitorowania dla {symbol}: {e}")
+            else:
+                # Anulowany/Wygasły (brak potwierdzenia lub score spadł)
+                try:
+                    with get_session() as session:
+                        db_sig = session.query(Signal).filter(Signal.id == monitoring_sig.id).first()
+                        if db_sig:
+                            db_sig.status = "EXPIRED"
+                            session.commit()
+                            logger.info(f"❌ Anulowano monitorowanie {db_sig.direction} {symbol} (brak potwierdzenia trendu, open={open_p}, close={close_p}, score={a['score']})")
+                            
+                            # Wyślij aktualizację anulowanego sygnału do UI
+                            await ws_manager.broadcast({
+                                "type": "SIGNAL_EXPIRED",
+                                "payload": {"signal_id": db_sig.id, "symbol": symbol}
+                            })
+                except Exception as e:
+                    logger.error(f"Błąd wygaszania sygnału monitorowania dla {symbol}: {e}")
+
+        else:
+            # Brak aktywnego monitorowania. Jeśli score przekracza próg – zaczynamy monitorowanie!
+            if a["score"] >= SIGNAL_THRESHOLD:
+                try:
+                    sig_id = tracker.save_signal(a, status="MONITORING")
+                    logger.info(f"🔍 Rozpoczęto monitorowanie potencjalnego trendu {a['direction']} {symbol} (score={a['score']})")
+                    
+                    # Powiadom UI przez WebSocket
+                    await ws_manager.broadcast({
+                        "type": "MONITORING_START",
+                        "payload": {
+                            "signal_id": sig_id,
+                            "symbol": symbol,
+                            "direction": a["direction"],
+                            "score": a["score"],
+                            "timestamp": datetime.now(timezone.utc).isoformat()
+                        }
+                    })
+                except Exception as e:
+                    logger.error(f"Błąd zapisu sygnału monitorowania dla {symbol}: {e}")
 
     # Rozstrzygaj pending sygnaly
     tracker.resolve_pending_signals()
@@ -285,6 +359,55 @@ async def trigger_ml_train():
     return res
 
 
+class DepositRequest(BaseModel):
+    amount: float
+
+
+@app.get("/api/wallet")
+async def get_wallet():
+    """Pobiera aktualne saldo wirtualnego portfela."""
+    try:
+        with get_session() as session:
+            wallet = session.query(VirtualWallet).first()
+            if not wallet:
+                wallet = VirtualWallet(balance_usdt=1000.0)
+                session.add(wallet)
+                session.commit()
+                session.refresh(wallet)
+            return {"balance_usdt": round(wallet.balance_usdt, 2)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Błąd pobierania salda: {str(e)}")
+
+
+@app.post("/api/wallet/deposit")
+async def deposit_funds(req: DepositRequest):
+    """Zwiększa wirtualne saldo portfela."""
+    if req.amount <= 0:
+        raise HTTPException(status_code=400, detail="Kwota doładowania musi być większa od zera")
+    try:
+        with get_session() as session:
+            wallet = session.query(VirtualWallet).first()
+            if not wallet:
+                wallet = VirtualWallet(balance_usdt=1000.0)
+                session.add(wallet)
+                session.commit()
+                session.refresh(wallet)
+            wallet.balance_usdt += req.amount
+            wallet.updated_at = datetime.now(timezone.utc)
+            session.commit()
+            session.refresh(wallet)
+            
+            # Poinformuj UI przez WebSocket
+            await ws_manager.broadcast({
+                "type": "WALLET_UPDATE",
+                "payload": {"balance_usdt": round(wallet.balance_usdt, 2)}
+            })
+            
+            return {"status": "success", "balance_usdt": round(wallet.balance_usdt, 2)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Błąd doładowania portfela: {str(e)}")
+
+
 @app.get("/api/positions")
 async def get_positions():
     """Aktualne otwarte pozycje."""
@@ -401,6 +524,15 @@ async def trigger_analysis():
 async def websocket_endpoint(websocket: WebSocket):
     await ws_manager.connect(websocket)
     try:
+        wallet_bal = 1000.0
+        try:
+            with get_session() as session:
+                wallet = session.query(VirtualWallet).first()
+                if wallet:
+                    wallet_bal = wallet.balance_usdt
+        except Exception:
+            pass
+
         # Wyslij aktualny stan po polaczeniu
         await websocket.send_json({
             "type":      "CONNECTED",
@@ -409,6 +541,7 @@ async def websocket_endpoint(websocket: WebSocket):
             "leverage":  state["leverage"],
             "last_update": state["last_update"],
             "ml_status":   ml_engine.get_status(),
+            "wallet_balance": round(wallet_bal, 2),
         })
         while True:
             await websocket.receive_text()  # keep alive

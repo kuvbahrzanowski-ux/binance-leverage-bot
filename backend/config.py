@@ -39,7 +39,7 @@ PORT = int(os.getenv("PORT", "8000"))
 # ── Stałe analizy ────────────────────────────────────────────
 SIGNAL_THRESHOLD        = 60   # Minimalny score do sygnału
 HIGH_CONFIDENCE_THRESHOLD = 80  # Wysoka pewność sygnału
-ANALYZE_INTERVAL_SEC    = 300  # Co 5 minut
+ANALYZE_INTERVAL_SEC    = 900  # Co 15 minut
 AUTO_TRADE_COUNTDOWN_SEC = 10  # Odliczanie przed zleceniem
 
 # ── Timeframy ────────────────────────────────────────────────

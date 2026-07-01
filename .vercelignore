@@ -1,0 +1,10 @@
+# Ignore Python backend files for Vercel static hosting
+backend/
+*.py
+requirements.txt
+render.yaml
+START_BOT.bat
+start.py
+data/
+walkthrough.md
+.gitignore

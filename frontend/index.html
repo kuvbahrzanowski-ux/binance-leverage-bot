@@ -59,6 +59,7 @@
   <div class="toggle-group" style="margin-left: 1.5rem; margin-right: auto;">
     <button class="toggle-btn active-signal" id="nav-dashboard" onclick="switchView('dashboard')">📈 Pulpit</button>
     <button class="toggle-btn" id="nav-ml" onclick="switchView('ml')">🧠 Mózg Bota (ML)</button>
+    <button class="toggle-btn" id="nav-wallet" onclick="switchView('wallet')">💼 Portfel</button>
   </div>
 
   <!-- Status -->
@@ -503,6 +504,83 @@
           </div>
         </div>
       </div>
+    </div>
+  </div>
+  
+  <!-- ══ VIEW: WALLET ══ -->
+  <div id="view-wallet" class="view-container hidden">
+    <div class="main-grid" style="grid-template-columns: 1.2fr 0.8fr;">
+      
+      <!-- Left side: Wallet Card and Deposit Panel -->
+      <div class="chart-section" style="display: flex; flex-direction: column; gap: 1.5rem;">
+        
+        <!-- Virtual Credit Card (3D Glassmorphism Card) -->
+        <div class="glass" style="padding: 2rem; position: relative; overflow: hidden; display: flex; flex-direction: column; justify-content: space-between; height: 260px; background: linear-gradient(135deg, rgba(23, 20, 38, 0.9) 0%, rgba(13, 11, 23, 0.95) 100%); border: 1px solid rgba(255,255,255,0.08); box-shadow: 0 20px 40px rgba(0,0,0,0.5);">
+          <!-- Card Decorative Glows -->
+          <div style="position: absolute; top: -50px; right: -50px; width: 180px; height: 180px; background: radial-gradient(circle, rgba(243, 186, 47, 0.15) 0%, transparent 70%); filter: blur(20px); pointer-events: none;"></div>
+          <div style="position: absolute; bottom: -50px; left: -50px; width: 180px; height: 180px; background: radial-gradient(circle, rgba(0, 192, 115, 0.1) 0%, transparent 70%); filter: blur(20px); pointer-events: none;"></div>
+
+          <!-- Top Row -->
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; z-index: 1;">
+            <div>
+              <div style="font-size: 0.65rem; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.15em; margin-bottom: 2px;">Wirtualny Symulator Portfela</div>
+              <div style="font-family: var(--mono); font-size: 0.8rem; font-weight: 600; color: #f3ba2f;">LEVERAGE CARD</div>
+            </div>
+            <!-- Binance Gold Chip -->
+            <div style="width: 45px; height: 35px; background: linear-gradient(135deg, #ffd700 0%, #b8860b 100%); border-radius: 6px; box-shadow: inset 0 1px 3px rgba(255,255,255,0.4); display: flex; align-items: center; justify-content: center; font-size: 1rem; filter: brightness(1.1);">💳</div>
+          </div>
+
+          <!-- Middle Row: Big Balance -->
+          <div style="z-index: 1; margin: 1.5rem 0;">
+            <div style="font-size: 0.6rem; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 4px;">Dostępne środki (USDT)</div>
+            <div style="font-family: var(--mono); font-size: 3rem; font-weight: 800; color: #ffffff; letter-spacing: -0.02em; line-height: 1;" id="wallet-balance-val">$1 000.00</div>
+          </div>
+
+          <!-- Bottom Row: Card Details -->
+          <div style="display: flex; justify-content: space-between; align-items: flex-end; z-index: 1;">
+            <div>
+              <div style="font-size: 0.5rem; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 2px;">Wielkość zlecenia</div>
+              <div style="font-family: var(--mono); font-size: 0.8rem; font-weight: 600; color: var(--text-1);">100.00 USDT (Sztywna)</div>
+            </div>
+            <div style="text-align: right;">
+              <div style="font-size: 0.5rem; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 2px;">Status symulatora</div>
+              <div style="font-size: 0.75rem; font-weight: 700; color: var(--green-400); display: flex; align-items: center; gap: 4px;">● AKTYWNY</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Deposit Funds Panel -->
+        <div class="glass" style="padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem;">
+          <div class="sec-title">💰 Doładuj wirtualny portfel</div>
+          <div style="font-size: 0.75rem; color: var(--text-2); margin-bottom: 0.5rem;">
+            Doładuj swoje saldo, aby przetestować symulator przy użyciu wirtualnych środków bez ryzykowania prawdziwych pieniędzy.
+          </div>
+          
+          <div style="display: flex; gap: 0.75rem;">
+            <button class="btn btn-dark" style="flex: 1; border: 1px solid var(--border);" onclick="quickDeposit(1000)">+1 000 USDT</button>
+            <button class="btn btn-dark" style="flex: 1; border: 1px solid var(--border);" onclick="quickDeposit(5000)">+5 000 USDT</button>
+            <button class="btn btn-dark" style="flex: 1; border: 1px solid var(--border);" onclick="quickDeposit(10000)">+10 000 USDT</button>
+          </div>
+
+          <div style="display: flex; gap: 0.75rem; margin-top: 0.5rem;">
+            <input type="number" id="deposit-amount-input" class="input-field" placeholder="Wpisz inną kwotę (USDT)..." style="flex: 1; background: rgba(0,0,0,0.25); border: 1px solid var(--border); border-radius: 8px; padding: 0 1rem; color: #fff; font-family: var(--mono); height: 42px;">
+            <button class="btn btn-blue" onclick="manualDeposit()">Doładuj saldo</button>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Right side: simulated trade history / transactions -->
+      <div class="right-panel">
+        <div class="glass" style="padding: 1.5rem; height: 100%; display: flex; flex-direction: column; gap: 1rem;">
+          <div class="sec-title">📜 Ostatnie transakcje (Symulator)</div>
+          <div id="wallet-history-feed" style="display: flex; flex-direction: column; gap: 0.75rem; max-height: 480px; overflow-y: auto; padding-right: 0.25rem;">
+            <!-- Dynamically populated via JS from trades/signals -->
+            <div class="empty">Brak historii transakcji...</div>
+          </div>
+        </div>
+      </div>
+
     </div>
   </div>
 
