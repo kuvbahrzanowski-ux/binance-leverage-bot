@@ -1,5 +1,7 @@
 # ⚡ Binance Leverage Bot – Dashboard
 
+[![Deploy to Render](https://render.com/images/deploy-to-render.svg)](https://render.com/deploy?repo=https://github.com/kuvbahrzanowski-ux/binance-leverage-bot)
+
 Bot do analizy i automatycznego tradingu na dźwigni **50x/100x** na Binance Futures.
 Obsługuje **BTC, ETH, XRP** z analizą multi-timeframe co 5 minut.
 
