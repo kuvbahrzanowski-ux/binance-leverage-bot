@@ -25,7 +25,7 @@ from config import (
     HOST, PORT, SYMBOLS, ANALYZE_INTERVAL_SEC,
     SIGNAL_THRESHOLD, DEFAULT_LEVERAGE, TRADING_MODE
 )
-from database import init_db, get_session, VirtualWallet
+from database import init_db, get_session, VirtualWallet, Signal
 from signal_engine import analyze_all, analyze_symbol
 from tracker import tracker
 from order_manager import order_manager
