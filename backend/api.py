@@ -420,15 +420,21 @@ async def websocket_endpoint(websocket: WebSocket):
 
 @app.on_event("startup")
 async def startup():
-    init_db()
-    # Analiza od razu przy starcie
-    asyncio.create_task(run_analysis())
-    # Harmonogram co 5 minut
-    scheduler.add_job(run_analysis, "interval", seconds=ANALYZE_INTERVAL_SEC, id="analysis")
-    # Reset dzienny o polnocy UTC
-    scheduler.add_job(daily_reset, "cron", hour=0, minute=0, id="daily_reset")
-    scheduler.start()
-    logger.info(f"🚀 Bot uruchomiony! Tryb: {state['trading_mode']}  Dzwignia: {state['leverage']}x")
+    try:
+        init_db()
+        # Analiza od razu przy starcie
+        asyncio.create_task(run_analysis())
+        # Harmonogram co 5 minut
+        scheduler.add_job(run_analysis, "interval", seconds=ANALYZE_INTERVAL_SEC, id="analysis")
+        # Reset dzienny o polnocy UTC
+        scheduler.add_job(daily_reset, "cron", hour=0, minute=0, id="daily_reset")
+        scheduler.start()
+        logger.info(f"🚀 Bot uruchomiony! Tryb: {state['trading_mode']}  Dzwignia: {state['leverage']}x")
+    except Exception as e:
+        import traceback
+        print("CRITICAL STARTUP ERROR:")
+        traceback.print_exc()
+        raise e
 
 
 @app.on_event("shutdown")

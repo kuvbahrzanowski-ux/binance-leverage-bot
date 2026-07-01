@@ -8,8 +8,8 @@ services:
     envVars:
       - key: PYTHON_VERSION
         value: 3.12.2
-      - key: PORT
-        value: 8000
+      - key: PYTHONUNBUFFERED
+        value: "1"
       - key: BINANCE_API_KEY
         sync: false
       - key: BINANCE_SECRET_KEY
