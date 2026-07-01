@@ -865,6 +865,20 @@ async function manualDeposit() {
   } catch (e) {}
 }
 
+async function resetWallet() {
+  if (!confirm('Czy na pewno chcesz zresetować saldo do 1 000 USDT?')) return;
+  try {
+    const res = await fetch(`${API}/api/wallet/reset`, {
+      method: 'POST',
+    }).then(r => r.json());
+    if (res.status === 'reset') {
+      applyWalletData(res);
+      renderWalletHistory();
+      toast('🔄 Portfel zresetowany', 'Saldo ustawione na 1 000 USDT', 'blue', 3000);
+    }
+  } catch (e) {}
+}
+
 function renderWalletHistory() {
   const feed = document.getElementById('wallet-history-feed');
   if (!feed) return;

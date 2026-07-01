@@ -408,6 +408,31 @@ async def deposit_funds(req: DepositRequest):
         raise HTTPException(status_code=500, detail=f"Błąd doładowania portfela: {str(e)}")
 
 
+@app.post("/api/wallet/reset")
+async def reset_wallet():
+    """Resetuje wirtualne saldo portfela do 1000 USDT."""
+    try:
+        with get_session() as session:
+            wallet = session.query(VirtualWallet).first()
+            if not wallet:
+                wallet = VirtualWallet(balance_usdt=1000.0)
+                session.add(wallet)
+            else:
+                wallet.balance_usdt = 1000.0
+                wallet.updated_at = datetime.now(timezone.utc)
+            session.commit()
+            session.refresh(wallet)
+
+            await ws_manager.broadcast({
+                "type": "WALLET_UPDATE",
+                "payload": {"balance_usdt": round(wallet.balance_usdt, 2)}
+            })
+
+            return {"status": "reset", "balance_usdt": round(wallet.balance_usdt, 2)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Błąd resetu portfela: {str(e)}")
+
+
 @app.get("/api/positions")
 async def get_positions():
     """Aktualne otwarte pozycje."""
