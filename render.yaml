@@ -19,7 +19,7 @@ services:
       - key: TRADING_MODE
         value: "SIGNAL_ONLY"
       - key: DATABASE_URL
-        sync: false  # Tutaj nalezy wkleic URL bazy danych PostgreSQL (np. z Supabase)
+        value: postgresql://postgres.qtfwkxmtrfchgmkxaduu:S95CVcjViCTfR7nk@aws-0-eu-central-1.pooler.supabase.com:6543/postgres
       - key: MAX_POSITION_USDT
         value: "100"
       - key: DEFAULT_LEVERAGE
