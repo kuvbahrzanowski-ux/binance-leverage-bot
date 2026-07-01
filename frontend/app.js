@@ -2,8 +2,21 @@
    app.js – Binance Leverage Bot Dashboard Logic v2
    ═══════════════════════════════════════════════════════ */
 
-const API    = `http://${location.hostname}:8000`;
-const WS_URL = `ws://${location.hostname}:8000/ws/live`;
+// Dynamic backend configuration
+let savedAPI = localStorage.getItem('backend_api');
+const urlParams = new URLSearchParams(window.location.search);
+const apiParam = urlParams.get('api');
+
+if (apiParam) {
+  savedAPI = apiParam.replace(/\/$/, "");
+  localStorage.setItem('backend_api', savedAPI);
+  window.history.replaceState({}, document.title, window.location.pathname);
+}
+
+const API = savedAPI || `http://${location.hostname}:8000`;
+const WS_URL = API.startsWith('https') 
+  ? API.replace('https://', 'wss://') + '/ws/live'
+  : API.replace('http://', 'ws://') + '/ws/live';
 
 /* ── App State ──────────────────────────────────────── */
 const S = {
@@ -709,6 +722,25 @@ async function init() {
   connectWS();
   refreshModeUI();
   refreshLevUI();
+
+  // Zmiana adresu API po kliknięciu w status pill
+  const pill = document.querySelector('.status-pill');
+  if (pill) {
+    pill.style.cursor = 'pointer';
+    pill.title = 'Kliknij, aby zmienić adres API backendu';
+    pill.onclick = () => {
+      const newApi = prompt('Wpisz nowy adres URL swojego backendu Render (np. https://xxx.onrender.com):', API);
+      if (newApi !== null) {
+        const val = newApi.trim().replace(/\/$/, "");
+        if (val) {
+          localStorage.setItem('backend_api', val);
+        } else {
+          localStorage.removeItem('backend_api');
+        }
+        window.location.reload();
+      }
+    };
+  }
 
   await Promise.allSettled([fetchSigs(), fetchStats(), fetchBal(), fetchPos(), refreshPrices(), fetchMLStatus()]);
 
