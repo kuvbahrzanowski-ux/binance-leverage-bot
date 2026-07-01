@@ -4,6 +4,10 @@
 
 // Dynamic backend configuration
 let savedAPI = localStorage.getItem('backend_api');
+if (savedAPI && savedAPI.includes("onrender.com") && savedAPI.includes(":8000")) {
+  localStorage.removeItem('backend_api');
+  savedAPI = null;
+}
 const urlParams = new URLSearchParams(window.location.search);
 const apiParam = urlParams.get('api');
 
