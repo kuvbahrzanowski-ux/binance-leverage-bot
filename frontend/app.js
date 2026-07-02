@@ -437,8 +437,11 @@ function updateChartDecorations() {
   let activeSig = sigsList.find(s => s.symbol === S.chart.sym && s.status === 'PENDING');
 
   if (!activeSig && S.testActive) {
-    // Generuj dynamiczne dane testowe dopasowane do aktualnej ceny wybranego krypto
-    const currentPrice = parseFloat(document.getElementById(`price-${S.chart.sym}`)?.textContent.replace(/[^0-9.]/g, '') || 1000);
+    // Bezpieczne pobranie ceny
+    const priceEl = document.getElementById(`price-${S.chart.sym}`);
+    const priceText = priceEl ? priceEl.textContent : '';
+    const currentPrice = parseFloat(priceText.replace(/[^0-9.]/g, '')) || 1000;
+
     activeSig = {
       symbol: S.chart.sym,
       direction: 'LONG',
@@ -1523,14 +1526,18 @@ function triggerTestCandlePopup() {
     document.getElementById('sig-modal-pair').textContent = S.chart.sym + ' (TEST)';
     
     // Oblicz ceny dopasowane do bieżącej ceny wybranego krypto
-    const currentPrice = parseFloat(document.getElementById(`price-${S.chart.sym}`)?.textContent.replace(/[^0-9.]/g, '') || 60000);
+    const priceEl = document.getElementById(`price-${S.chart.sym}`);
+    const priceText = priceEl ? priceEl.textContent : '';
+    const currentPrice = parseFloat(priceText.replace(/[^0-9.]/g, '')) || 60000;
+
     const entryPriceStr = f.price(currentPrice, S.chart.sym);
     const tpPriceStr = f.price(currentPrice * 1.025, S.chart.sym);
     const slPriceStr = f.price(currentPrice * 0.992, S.chart.sym);
 
-    document.getElementById('sig-modal-entry').textContent = `$${entryPriceStr}`;
-    document.getElementById('sig-modal-tp').textContent = `$${tpPriceStr}`;
-    document.getElementById('sig-modal-sl').textContent = `$${slPriceStr}`;
+    document.getElementById('sig-modal-entry').textContent = entryPriceStr;
+    document.getElementById('sig-modal-tp').textContent = tpPriceStr;
+    document.getElementById('sig-modal-sl').textContent = slPriceStr;
+
     document.getElementById('sig-modal-leverage').textContent = `Pozycja: $${S.positionUsdt || 50} USDT (10x dźwignia)`;
 
     // Wygeneruj świeczkę Hammer
