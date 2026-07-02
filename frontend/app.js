@@ -530,49 +530,60 @@ function updateChartDecorations() {
 }
 
 
+let tvWidget = null;
+
 function initChart() {
-  const container = document.getElementById('chart-container');
-  lwChart = LightweightCharts.createChart(container, {
-    layout: { background:{color:'transparent'}, textColor:'#475569' },
-    grid:   { vertLines:{color:'rgba(59,130,246,0.06)'}, horzLines:{color:'rgba(59,130,246,0.06)'} },
-    crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
-    rightPriceScale: { borderColor:'rgba(59,130,246,0.1)' },
-    timeScale: { borderColor:'rgba(59,130,246,0.1)', timeVisible:true, secondsVisible:false },
-    height: 370,
-  });
-
-  candleSeries = lwChart.addCandlestickSeries({
-    upColor:'#10b981', downColor:'#ef4444',
-    borderUpColor:'#10b981', borderDownColor:'#ef4444',
-    wickUpColor:'#10b981', wickDownColor:'#ef4444',
-  });
-
-  lwChart.subscribeCrosshairMove(p=>{
-    if(!p.time || !candleSeries) return;
-    const d = p.seriesData.get(candleSeries);
-    if(d) {
-      set('o-o', d.open);   set('o-h', d.high);
-      set('o-l', d.low);    set('o-c', d.close);
-      css('o-c','color', d.close>=d.open ? 'var(--green-400)' : 'var(--red-400)');
-    }
-  });
-
   loadChart();
 }
 
-async function loadChart() {
-  try {
-    const klines = await fetch(`${API}/api/klines/${S.chart.sym}?interval=${S.chart.tf}&limit=200`).then(r=>r.json());
-    const candles = klines.map(k=>({ time:Math.floor(k.open_time/1000), open:k.open, high:k.high, low:k.low, close:k.close }));
-    if (!S.chart) S.chart = {};
-    S.chart.candles = candles;
-    
-    candleSeries?.setData(candles);
-    lwChart?.timeScale().fitContent();
-    updateChartDecorations();
-  } catch(e){}
-}
+function loadChart() {
+  const container = document.getElementById('chart-container');
+  if (!container) return;
 
+  // Wyczyść kontener i dodaj element dla widgetu TradingView
+  container.innerHTML = `<div id="tradingview-widget" style="width:100%; height:370px;"></div>`;
+
+  // Mapowanie interwału na format TradingView
+  let interval = "15";
+  if (S.chart.tf === '1m') interval = "1";
+  else if (S.chart.tf === '5m') interval = "5";
+  else if (S.chart.tf === '15m') interval = "15";
+  else if (S.chart.tf === '1h') interval = "60";
+  else if (S.chart.tf === '4h') interval = "240";
+
+  // Mapowanie symboli Binance Futures
+  const symbolMap = {
+    'BTCUSDT': 'BINANCE:BTCUSDT',
+    'ETHUSDT': 'BINANCE:ETHUSDT',
+    'XRPUSDT': 'BINANCE:XRPUSDT'
+  };
+  const tvSymbol = symbolMap[S.chart.sym] || `BINANCE:${S.chart.sym}`;
+
+  // Tworzenie oficjalnego widgetu TradingView
+  try {
+    tvWidget = new TradingView.widget({
+      "autosize": true,
+      "symbol": tvSymbol,
+      "interval": interval,
+      "timezone": "Etc/UTC",
+      "theme": "dark",
+      "style": "1", // Świece
+      "locale": "pl",
+      "toolbar_bg": "#0f172a",
+      "enable_publishing": false,
+      "hide_side_toolbar": false, // Pokaż przybory do rysowania linii
+      "allow_symbol_change": false,
+      "container_id": "tradingview-widget",
+      "studies": [
+        "RSI@tv-basicstudies",
+        "MASimple@tv-basicstudies"
+      ],
+      "loading_screen": { "backgroundColor": "#0a0c16" }
+    });
+  } catch (e) {
+    console.error("Błąd ładowania TradingView widget:", e);
+  }
+}
 
 function switchSym(sym) {
   S.chart.sym = sym;
