@@ -1415,10 +1415,7 @@ async function showDailyTradesModal() {
   modal.classList.remove('hidden');
 
   try {
-    // Pobierz ostatnie sygnały z API
     const sigs = await fetch(`${API}/api/signals?limit=100`).then(r => r.json());
-    
-    // Filtruj tylko dzisiejsze (czas lokalny dnia dzisiejszego UTC)
     const todayStr = new Date().toISOString().split('T')[0];
     const todaySigs = sigs.filter(s => s.created_at.startsWith(todayStr));
 
@@ -1439,10 +1436,8 @@ async function showDailyTradesModal() {
       else if (s.status === 'PENDING') statusBadge = '<span style="background:rgba(245,158,11,0.15); color:var(--gold); font-size:0.68rem; padding:2px 8px; border-radius:4px; font-weight:700;">⏳ AKTYWNA</span>';
       else statusBadge = `<span style="background:rgba(255,255,255,0.08); color:var(--text-3); font-size:0.68rem; padding:2px 8px; border-radius:4px; font-weight:700;">${s.status}</span>`;
 
-      // Wielkość pozycji
       const positionUsdt = s.indicators?.position_usdt || 50;
 
-      // Lista powodów
       const reasonsList = (s.reasons || []).map(r => {
         return `<div style="font-size:0.72rem; color:var(--text-2); display:flex; align-items:flex-start; gap:6px;">
           <span>${r.startsWith('✅') ? '🟩' : r.startsWith('❌') ? '🟥' : '🟨'}</span>
@@ -1474,12 +1469,27 @@ async function showDailyTradesModal() {
       `;
       list.insertAdjacentHTML('beforeend', itemHtml);
     });
-
   } catch (e) {
     list.innerHTML = '<div class="empty" style="color:var(--red-400);">Błąd pobierania transakcji z API...</div>';
   }
 }
 
+function closeSignalModal() {
+  clearTimeout(testPopupTimer);
+  
+  // Ukryj samo okienko popup
+  const modal = document.getElementById('signal-modal-ov');
+  if (modal) modal.classList.add('hidden');
+  
+  toast('Podgląd na wykresie', 'Linie testowe znikną z wykresu za 10 sekund...', 'info', 3000);
+  
+  // Uruchom odliczanie 10 sekund dla samych linii i strzałki na wykresie
+  testPopupTimer = setTimeout(() => {
+    S.testActive = false;
+    updateChartDecorations();
+    toast('Test zakończony', 'Linie testowe na wykresie wygasły.', 'info', 2500);
+  }, 10000);
+}
 function generateCandleSVG(open, close, high, low, direction, patternName) {
   // Świeca w białym kolorze takim mało jasnym (dim white)
   const bodyColor = 'rgba(203, 213, 225, 0.85)'; // #cbd5e1
