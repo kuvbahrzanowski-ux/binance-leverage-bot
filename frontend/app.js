@@ -632,12 +632,27 @@ document.getElementById('modal-no').onclick = ()=>{
 };
 
 /* ══════════════════════════════════════════════════════
-   SETTINGS
+   SETTINGS – Swing Trade Edition
 ══════════════════════════════════════════════════════ */
 function refreshModeUI() {
-  document.getElementById('btn-signal').className = `toggle-btn${S.mode==='SIGNAL_ONLY'?' active-signal':''}`;
-  document.getElementById('btn-auto'  ).className = `toggle-btn${S.mode==='AUTO_TRADE' ?' active-auto' :''}`;
-  set('ftr-mode', S.mode==='SIGNAL_ONLY' ? '📊 Signal Only' : '🤖 Auto Trade');
+  const isAnalyze = S.mode === 'ANALYZE';
+  const isTrade   = S.mode === 'ANALYZE_AND_TRADE';
+  const btnA = document.getElementById('btn-analyze');
+  const btnT = document.getElementById('btn-trade');
+  if (btnA) btnA.className = `toggle-btn${isAnalyze ? ' active-signal' : ''}`;
+  if (btnT) btnT.className = `toggle-btn${isTrade   ? ' active-auto'   : ''}`;
+  set('ftr-mode', isAnalyze ? '🔍 Tylko Analiza' : '🔍💰 Analizuj + Obstawiaj');
+
+  // Swing status bar - mode display
+  const modeEl = document.getElementById('mode-display');
+  if (modeEl) {
+    modeEl.textContent = isAnalyze ? '🔍 Tylko Analiza' : '🔍💰 Obstawianie Włączone';
+    modeEl.style.color = isTrade ? 'var(--green-400)' : 'var(--text-1)';
+  }
+
+  // Badge w navbarze
+  const badge = document.getElementById('daily-trades-badge');
+  if (badge) badge.style.display = isTrade ? 'flex' : 'none';
 }
 
 function refreshLevUI() {
@@ -650,18 +665,91 @@ function refreshLevUI() {
   set('ftr-lev', S.leverage+'x');
 }
 
+async function fetchDailyTrades() {
+  try {
+    const r = await fetch(`${API}/api/daily_trades`).then(r => r.json());
+    S.dailyTrades = r.count;
+    S.dailyLimit  = r.limit;
+    updateDailyTradesUI(r.count, r.limit);
+  } catch (e) {}
+}
+
+function updateDailyTradesUI(count, limit) {
+  // Navbar badge
+  const cnt = document.getElementById('daily-trades-count');
+  const lim = document.getElementById('daily-trades-limit');
+  if (cnt) cnt.textContent = count;
+  if (lim) lim.textContent = limit;
+
+  // Status bar
+  const sbC = document.getElementById('sb-daily-count');
+  const sbL = document.getElementById('sb-daily-limit');
+  if (sbC) {
+    sbC.textContent = count;
+    sbC.style.color = count >= limit ? 'var(--red-400)' : 'var(--green-400)';
+  }
+  if (sbL) sbL.textContent = limit;
+
+  // Wallet panel
+  const wC = document.getElementById('wallet-daily-count');
+  if (wC) wC.textContent = count;
+  const bar = document.getElementById('daily-progress-bar');
+  if (bar) bar.style.width = `${Math.min(100, (count / limit) * 100)}%`;
+}
+
+function updatePositionDisplay(val) {
+  val = parseFloat(val);
+  const posEl = document.getElementById('pos-val-display');
+  if (posEl) posEl.textContent = `$${val} USDT`;
+
+  // Przelicz TP/SL preview (10x dźwignia)
+  const tpUSDT = (val * 2.5).toFixed(0);  // +250% na pozycji
+  const slUSDT = (val * 0.8).toFixed(0);  // -80% na pozycji
+  const tpEl = document.getElementById('tp-preview');
+  const slEl = document.getElementById('sl-preview');
+  if (tpEl) tpEl.textContent = `+$${tpUSDT} (+250%)`;
+  if (slEl) slEl.textContent = `-$${slUSDT} (-80%)`;
+
+  // Status bar
+  const sbPos = document.getElementById('sb-position');
+  if (sbPos) sbPos.textContent = `$${val} USDT`;
+}
+
+async function savePositionSize(val) {
+  val = parseFloat(val);
+  try {
+    await fetch(`${API}/api/settings`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ position_usdt: val })
+    });
+    S.positionUsdt = val;
+    updatePositionDisplay(val);
+    toast('💰 Pozycja', `Ustawiono $${val} USDT`, 'blue', 2000);
+  } catch (e) {}
+}
+
 async function setMode(mode) {
-  const res = await fetch(`${API}/api/settings`,{
-    method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({mode})
-  }).then(r=>r.json());
-  S.mode = res.mode; refreshModeUI();
-  toast('Tryb', mode==='SIGNAL_ONLY'?'📊 Signal Only aktywny':'🤖 Auto Trade aktywny', 'info', 2000);
+  try {
+    const res = await fetch(`${API}/api/settings`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode })
+    }).then(r => r.json());
+    S.mode = res.mode || mode;
+    refreshModeUI();
+    const label = mode === 'ANALYZE' ? '🔍 Tylko Analiza aktywna' : '🔍💰 Tryb obstawiania włączony';
+    toast('Tryb zmieniony', label, mode === 'ANALYZE' ? 'info' : 'green', 3000);
+    if (mode === 'ANALYZE_AND_TRADE') fetchDailyTrades();
+  } catch (e) {
+    toast('Błąd', 'Nie udało się zmienić trybu', 'warn');
+  }
 }
 
 function confirmAutoTrade() {
-  confirm2('🤖','Włączyć Auto Trade?',
-    'Bot będzie automatycznie składać zlecenia na Binance Futures z 10-sekundowym odliczaniem.\n\nUpewnij się że klucze API są skonfigurowane i testowałeś na Testnet.',
-    ()=>setMode('AUTO_TRADE'), 'Włącz', 'btn-red-solid'
+  confirm2('🔍💰', 'Włączyć Obstawianie?',
+    'Bot będzie automatycznie zapisywać transakcje (2-3 dziennie) przy wykryciu sygnału.\n\nPozycje $30–$100 z celem TP +250% i SL -80% na pozycję.\n\nDzienne limity są aktywne – max 3 trade/dzień.',
+    () => setMode('ANALYZE_AND_TRADE'), 'Włącz', 'btn-green'
   );
 }
 
@@ -763,8 +851,33 @@ async function fetchBal() {
 async function init() {
   initChart();
   connectWS();
+
+  // Pobierz ustawienia z backendu (tryb, pozycja)
+  try {
+    const settings = await fetch(`${API}/api/settings`).then(r => r.json());
+    S.mode         = settings.mode         || 'ANALYZE';
+    S.positionUsdt = settings.position_usdt || 50;
+    S.leverage     = settings.leverage     || 10;
+    // Inicjalizuj slider pozycji
+    const slider = document.getElementById('position-slider');
+    if (slider) { slider.value = S.positionUsdt; updatePositionDisplay(S.positionUsdt); }
+    // Status bar
+    const sbLev = document.getElementById('sb-leverage');
+    if (sbLev) sbLev.textContent = `${S.leverage}x`;
+    const tpPct = settings.swing_tp_pct  || 25;
+    const slPct = settings.swing_sl_pct  || 8;
+    const sbTp = document.getElementById('sb-tp');
+    const sbSl = document.getElementById('sb-sl');
+    if (sbTp) sbTp.textContent = `+${tpPct * S.leverage}%`;
+    if (sbSl) sbSl.textContent = `-${slPct * S.leverage}%`;
+    // Limit dzienny
+    const sbDL = document.getElementById('sb-daily-limit');
+    if (sbDL) sbDL.textContent = settings.max_daily_trades || 3;
+  } catch (e) { S.mode = 'ANALYZE'; }
+
   refreshModeUI();
   refreshLevUI();
+  await fetchDailyTrades();
 
   // Zmiana adresu API po kliknięciu w status pill
   const pill = document.querySelector('.status-pill');
@@ -793,7 +906,9 @@ async function init() {
   setInterval(fetchSigs,     30_000);
   setInterval(fetchBal,      60_000);
   setInterval(loadChart,     60_000);
+  setInterval(fetchDailyTrades, 300_000); // Co 5 minut odśwież dzienny licznik
 }
+
 
 /* ══════════════════════════════════════════════════════
    VIEW SWITCHER & ML VIEW LOGIC

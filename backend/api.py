@@ -23,7 +23,9 @@ sys.path.insert(0, os.path.dirname(__file__))
 
 from config import (
     HOST, PORT, SYMBOLS, ANALYZE_INTERVAL_SEC,
-    SIGNAL_THRESHOLD, DEFAULT_LEVERAGE, TRADING_MODE
+    SIGNAL_THRESHOLD, DEFAULT_LEVERAGE, TRADING_MODE,
+    MAX_DAILY_TRADES, MIN_POSITION_USDT, MAX_POSITION_USDT,
+    DEFAULT_POSITION_USDT, SWING_TP_PCT, SWING_SL_PCT
 )
 from database import init_db, get_session, VirtualWallet, Signal
 from signal_engine import analyze_all, analyze_symbol
@@ -62,11 +64,13 @@ FRONTEND_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "fr
 
 # ── Stan globalny ─────────────────────────────────────────────
 state = {
-    "last_analyses":  {},       # symbol -> dict
-    "trading_mode":  TRADING_MODE,
+    "last_analyses":  {},          # symbol -> dict
+    "trading_mode":  TRADING_MODE, # ANALYZE | ANALYZE_AND_TRADE
     "leverage":      DEFAULT_LEVERAGE,
+    "position_usdt": DEFAULT_POSITION_USDT,  # Wielkosc pozycji
     "last_update":   None,
-    "countdown":     {},        # symbol -> int (sekund do auto-trade)
+    "countdown":     {},           # symbol -> int (sekund do auto-trade)
+    "daily_trades":  0,            # licznik dzienny (cache)
 }
 
 # ── WebSocket manager ─────────────────────────────────────────
@@ -150,8 +154,8 @@ async def run_analysis():
                                 "payload": a,
                             })
 
-                            # AUTO TRADE z odliczaniem
-                            if state["trading_mode"] == "AUTO_TRADE" and not risk_manager.is_paused:
+                            # AUTO TRADE z odliczaniem (tylko w trybie ANALYZE_AND_TRADE)
+                            if state["trading_mode"] == "ANALYZE_AND_TRADE" and not risk_manager.is_paused:
                                 asyncio.create_task(
                                     auto_trade_countdown(a, db_sig.id)
                                 )
@@ -176,13 +180,34 @@ async def run_analysis():
                     logger.error(f"Błąd wygaszania sygnału monitorowania dla {symbol}: {e}")
 
         else:
-            # Brak aktywnego monitorowania. Jeśli score przekracza próg – zaczynamy monitorowanie!
+            # Brak aktywnego monitorowania.
+            # Sprawdź dzienny limit trade (tylko dla ANALYZE_AND_TRADE)
+            daily_count = tracker.get_daily_trade_count()
+            state["daily_trades"] = daily_count
+
             if a["score"] >= SIGNAL_THRESHOLD:
+                # Sprawdź czy nie przekroczono dziennego limitu
+                if state["trading_mode"] == "ANALYZE_AND_TRADE" and daily_count >= MAX_DAILY_TRADES:
+                    logger.info(f"⛔ Dzienny limit trade ({MAX_DAILY_TRADES}) osiągnięty – pomijam {symbol} (score={a['score']})")
+                    await ws_manager.broadcast({
+                        "type": "DAILY_LIMIT_REACHED",
+                        "payload": {
+                            "symbol": symbol,
+                            "count": daily_count,
+                            "limit": MAX_DAILY_TRADES,
+                        }
+                    })
+                    continue
+
                 try:
+                    # Dodaj pozycje usdt do indicators dla tracker PnL
+                    if "indicators" not in a:
+                        a["indicators"] = {}
+                    a["indicators"]["position_usdt"] = state["position_usdt"]
+
                     sig_id = tracker.save_signal(a, status="MONITORING")
-                    logger.info(f"🔍 Rozpoczęto monitorowanie potencjalnego trendu {a['direction']} {symbol} (score={a['score']})")
-                    
-                    # Powiadom UI przez WebSocket
+                    logger.info(f"🔍 Monitorowanie {a['direction']} {symbol} (score={a['score']}, pozycja=${state['position_usdt']})")
+
                     await ws_manager.broadcast({
                         "type": "MONITORING_START",
                         "payload": {
@@ -190,6 +215,7 @@ async def run_analysis():
                             "symbol": symbol,
                             "direction": a["direction"],
                             "score": a["score"],
+                            "position_usdt": state["position_usdt"],
                             "timestamp": datetime.now(timezone.utc).isoformat()
                         }
                     })
@@ -359,8 +385,87 @@ async def trigger_ml_train():
     return res
 
 
+# ── Swing Trade Settings ─────────────────────────────────────────────
+
 class DepositRequest(BaseModel):
     amount: float
+
+
+class SettingsRequest(BaseModel):
+    mode: Optional[str] = None          # ANALYZE | ANALYZE_AND_TRADE
+    position_usdt: Optional[float] = None  # 30-100
+    leverage: Optional[int] = None
+
+
+@app.get("/api/settings")
+async def get_settings():
+    """Zwraca aktualne ustawienia bota."""
+    return {
+        "mode":           state["trading_mode"],
+        "position_usdt":  state["position_usdt"],
+        "leverage":       state["leverage"],
+        "max_daily_trades": MAX_DAILY_TRADES,
+        "swing_tp_pct":   SWING_TP_PCT,
+        "swing_sl_pct":   SWING_SL_PCT,
+        "min_position":   MIN_POSITION_USDT,
+        "max_position":   MAX_POSITION_USDT,
+    }
+
+
+@app.post("/api/settings")
+async def update_settings(req: SettingsRequest):
+    """Aktualizuje tryb pracy i parametry bota."""
+    changed = {}
+
+    if req.mode is not None:
+        if req.mode not in ("ANALYZE", "ANALYZE_AND_TRADE"):
+            raise HTTPException(400, "Tryb musi być 'ANALYZE' lub 'ANALYZE_AND_TRADE'")
+        state["trading_mode"] = req.mode
+        changed["mode"] = req.mode
+        logger.info(f"🔄 Tryb zmieniony na: {req.mode}")
+
+    if req.position_usdt is not None:
+        clamped = round(max(MIN_POSITION_USDT, min(MAX_POSITION_USDT, req.position_usdt)), 2)
+        state["position_usdt"] = clamped
+        changed["position_usdt"] = clamped
+        logger.info(f"💰 Wielkość pozycji zmieniona na: ${clamped}")
+
+    if req.leverage is not None:
+        state["leverage"] = max(1, min(10, req.leverage))
+        changed["leverage"] = state["leverage"]
+
+    # Powiadom UI
+    await ws_manager.broadcast({
+        "type": "SETTINGS_UPDATE",
+        "payload": {**changed, "trading_mode": state["trading_mode"]}
+    })
+
+    return {"status": "ok", **changed}
+
+
+@app.get("/api/daily_trades")
+async def get_daily_trades():
+    """Zwraca dzienny licznik transakcji."""
+    count = tracker.get_daily_trade_count()
+    state["daily_trades"] = count
+    return {
+        "count":     count,
+        "limit":     MAX_DAILY_TRADES,
+        "remaining": max(0, MAX_DAILY_TRADES - count),
+        "mode":      state["trading_mode"],
+    }
+
+
+@app.post("/api/position_size")
+async def set_position_size(req: DepositRequest):
+    """Szybka zmiana wielkości pozycji (alias)."""
+    clamped = round(max(MIN_POSITION_USDT, min(MAX_POSITION_USDT, req.amount)), 2)
+    state["position_usdt"] = clamped
+    await ws_manager.broadcast({
+        "type": "SETTINGS_UPDATE",
+        "payload": {"position_usdt": clamped}
+    })
+    return {"status": "ok", "position_usdt": clamped}
 
 
 @app.get("/api/wallet")

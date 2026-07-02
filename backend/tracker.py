@@ -64,9 +64,11 @@ class Tracker:
         """
         Sprawdza PENDING sygnaly i aktualizuje status
         jezeli cena dotknela TP lub SL.
+        Swing trade: okno monitorowania = 7 dni.
         """
         with get_session() as session:
-            cutoff = datetime.now(timezone.utc) - timedelta(hours=4)
+            # Swing trade: sprawdzaj przez 7 dni
+            cutoff = datetime.now(timezone.utc) - timedelta(days=7)
             pending = session.query(Signal).filter(
                 Signal.status == "PENDING",
                 Signal.created_at >= cutoff,
@@ -92,7 +94,7 @@ class Tracker:
                 except Exception as e:
                     logger.warning(f"Blad resolve sygnalu {sig.id}: {e}")
 
-            # Wygaszaj sygnaly starsze niz 4h
+            # Wygaszaj sygnaly starsze niz 7 dni
             old = session.query(Signal).filter(
                 Signal.status == "PENDING",
                 Signal.created_at < cutoff,
@@ -114,9 +116,11 @@ class Tracker:
 
         sig.pnl_pct = round(pnl_pct, 4)
         
-        # Oblicz zysk/strate w USDT na podstawie wielkosci pozycji (MAX_POSITION_USDT)
-        from config import MAX_POSITION_USDT
-        pnl_usdt = MAX_POSITION_USDT * (pnl_pct / 100.0)
+        # Oblicz zysk/strate w USDT na podstawie wielkosci pozycji
+        # Priorytet: rzeczywista pozycja zapisana w sygnale, potem DEFAULT
+        from config import DEFAULT_POSITION_USDT
+        position_usdt = float((sig.indicators or {}).get("position_usdt", DEFAULT_POSITION_USDT))
+        pnl_usdt = position_usdt * (pnl_pct / 100.0)
         
         # Zaktualizuj saldo wirtualnego portfela
         try:
@@ -132,6 +136,18 @@ class Tracker:
 
         session.commit()
         logger.info(f"Signal {sig.id} {sig.symbol} {status}  PnL: {sig.pnl_pct:.2f}%")
+
+    def get_daily_trade_count(self) -> int:
+        """Zwraca liczbe transakcji (PENDING/WIN/LOSS) z biezacego dnia UTC."""
+        today_start = datetime.now(timezone.utc).replace(
+            hour=0, minute=0, second=0, microsecond=0
+        )
+        with get_session() as session:
+            count = session.query(Signal).filter(
+                Signal.status.in_(["PENDING", "WIN", "LOSS"]),
+                Signal.created_at >= today_start,
+            ).count()
+        return count
 
     def update_daily_stats(self):
         """Przelicza i zapisuje statystyki dzienne."""

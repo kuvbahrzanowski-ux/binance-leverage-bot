@@ -734,3 +734,64 @@ body::after {
 }
 
 .hidden { display: none !important; }
+
+/* ─── Swing Trade Status Bar ─────────────── */
+.swing-status-bar {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  background: rgba(11,14,26,0.75);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  margin-bottom: 1.25rem;
+  overflow: hidden;
+}
+.swing-stat {
+  flex: 1;
+  padding: 0.65rem 1rem;
+  border-right: 1px solid var(--border);
+  text-align: center;
+}
+.swing-stat:last-child { border-right: none; }
+.swing-stat-label {
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--text-3);
+  margin-bottom: 0.25rem;
+}
+.swing-stat-val {
+  font-family: var(--mono);
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text-1);
+}
+
+/* ─── Daily Trades Badge (Navbar) ─────────── */
+.daily-badge {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  background: rgba(16,185,129,0.12);
+  border: 1px solid rgba(16,185,129,0.25);
+  border-radius: 20px;
+  padding: 4px 10px;
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--green-400);
+  margin-left: 0.5rem;
+}
+
+/* ─── Button Green ────────────────────────── */
+.btn-green {
+  background: linear-gradient(135deg, var(--green-600), var(--green-500));
+  color: #fff;
+  border: none;
+}
+.btn-green:hover {
+  background: linear-gradient(135deg, var(--green-500), var(--green-400));
+  box-shadow: 0 0 16px var(--green-glow);
+}
+

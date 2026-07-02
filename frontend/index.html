@@ -68,14 +68,21 @@
     <span id="stext">Łączenie…</span>
   </div>
 
-  <!-- Mode -->
+  <!-- Mode Toggle – Swing Trade -->
   <div class="mode-wrap">
     <span class="mode-label">Tryb</span>
     <div class="toggle-group">
-      <button class="toggle-btn active-signal" id="btn-signal" onclick="setMode('SIGNAL_ONLY')">📊 Signal Only</button>
-      <button class="toggle-btn" id="btn-auto" onclick="confirmAutoTrade()">🤖 Auto Trade</button>
+      <button class="toggle-btn active-signal" id="btn-analyze" onclick="setMode('ANALYZE')">🔍 Tylko Analiza</button>
+      <button class="toggle-btn" id="btn-trade" onclick="confirmAutoTrade()">🔍💰 Analizuj + Obstawiaj</button>
     </div>
   </div>
+
+  <!-- Daily Trades Badge -->
+  <div id="daily-trades-badge" class="daily-badge" title="Transakcji dziś / limit dzienny" style="display:none;">
+    <span id="daily-trades-count">0</span>/<span id="daily-trades-limit">3</span>
+    <span style="font-size:0.65rem; opacity:0.7; margin-left:2px;">trade</span>
+  </div>
+
 
   <div class="hdr-right">
     <!-- Leverage -->
@@ -193,8 +200,42 @@
   </section>
 
   <div id="view-dashboard" class="view-container">
+
+  <!-- ══ SWING TRADE STATUS BAR ══ -->
+  <div id="swing-status-bar" class="swing-status-bar">
+    <div class="swing-stat">
+      <div class="swing-stat-label">Tryb</div>
+      <div class="swing-stat-val" id="mode-display">🔍 Analiza</div>
+    </div>
+    <div class="swing-stat">
+      <div class="swing-stat-label">Transakcje dziś</div>
+      <div class="swing-stat-val">
+        <span id="sb-daily-count" style="color: var(--green-400)">0</span>
+        <span style="opacity:0.5">/</span>
+        <span id="sb-daily-limit">3</span>
+      </div>
+    </div>
+    <div class="swing-stat">
+      <div class="swing-stat-label">Pozycja</div>
+      <div class="swing-stat-val" id="sb-position">$50 USDT</div>
+    </div>
+    <div class="swing-stat">
+      <div class="swing-stat-label">Cel TP</div>
+      <div class="swing-stat-val" style="color: var(--green-400)" id="sb-tp">+250%</div>
+    </div>
+    <div class="swing-stat">
+      <div class="swing-stat-label">Max SL</div>
+      <div class="swing-stat-val" style="color: var(--red-400)" id="sb-sl">-80%</div>
+    </div>
+    <div class="swing-stat">
+      <div class="swing-stat-label">Dźwignia</div>
+      <div class="swing-stat-val" id="sb-leverage">10x</div>
+    </div>
+  </div>
+
   <!-- ══ MAIN GRID ══ -->
   <div class="main-grid">
+
 
     <!-- LEFT: Chart + Score cards -->
     <div class="chart-section">
@@ -570,6 +611,57 @@
             <button class="btn btn-dark" style="width: 100%; border: 1px solid rgba(255,101,101,0.25); color: var(--red-400); font-size: 0.75rem;" onclick="resetWallet()">
               🔄 Zresetuj saldo do 1 000 USDT
             </button>
+          </div>
+        </div>
+
+        <!-- Swing Trade Settings Panel -->
+        <div class="glass" style="padding: 1.5rem; display: flex; flex-direction: column; gap: 1.2rem;">
+          <div class="sec-title">⚙️ Ustawienia Swing Trade</div>
+
+          <!-- Position Size Slider -->
+          <div>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem;">
+              <label style="font-size:0.8rem; color:var(--text-2);">Wielkość Pozycji</label>
+              <span style="font-family:var(--mono); color:var(--accent); font-weight:700; font-size:1rem;" id="pos-val-display">$50 USDT</span>
+            </div>
+            <input type="range" id="position-slider" min="30" max="100" step="5" value="50"
+              style="width:100%; accent-color: var(--accent); cursor:pointer;"
+              oninput="updatePositionDisplay(this.value)"
+              onchange="savePositionSize(this.value)"/>
+            <div style="display:flex; justify-content:space-between; font-size:0.68rem; color:var(--text-3); margin-top:0.25rem;">
+              <span>$30</span><span>$50</span><span>$75</span><span>$100</span>
+            </div>
+          </div>
+
+          <!-- TP/SL Preview -->
+          <div style="background: rgba(0,0,0,0.2); border-radius: 8px; padding: 0.75rem; border: 1px solid var(--border);">
+            <div style="font-size:0.7rem; color:var(--text-3); margin-bottom:0.5rem; text-transform:uppercase; letter-spacing:0.05em;">Przy 10x dźwigni</div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.5rem;">
+              <div>
+                <div style="font-size:0.7rem; color:var(--text-2);">Cel TP (+25% ruchu)</div>
+                <div style="font-family:var(--mono); color:var(--green-400); font-weight:600;" id="tp-preview">+$125 (+250%)</div>
+              </div>
+              <div>
+                <div style="font-size:0.7rem; color:var(--text-2);">Stop Loss (-8% ruchu)</div>
+                <div style="font-family:var(--mono); color:var(--red-400); font-weight:600;" id="sl-preview">-$40 (-80%)</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Daily Limit Info -->
+          <div style="background: rgba(0,0,0,0.2); border-radius: 8px; padding: 0.75rem; border: 1px solid var(--border);">
+            <div style="font-size:0.7rem; color:var(--text-3); margin-bottom:0.5rem; text-transform:uppercase; letter-spacing:0.05em;">Limit Dzienny</div>
+            <div style="display:flex; align-items:center; gap:1rem;">
+              <div>
+                <div style="font-size:0.7rem; color:var(--text-2);">Transakcji dziś</div>
+                <div style="font-family:var(--mono); font-size:1.25rem; font-weight:700;">
+                  <span id="wallet-daily-count">0</span><span style="opacity:0.4; font-size:0.9rem;">/3</span>
+                </div>
+              </div>
+              <div style="flex:1; height:6px; background:rgba(255,255,255,0.08); border-radius:3px; overflow:hidden;">
+                <div id="daily-progress-bar" style="height:100%; width:0%; background:linear-gradient(90deg,var(--green-400),var(--accent)); border-radius:3px; transition:width 0.5s;"></div>
+              </div>
+            </div>
           </div>
         </div>
 
