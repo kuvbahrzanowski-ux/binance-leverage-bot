@@ -1459,7 +1459,64 @@ function generateCandleSVG(open, close, high, low, direction, patternName) {
   `;
 }
 
+let testPopupTimer = null;
+
+function triggerTestCandlePopup() {
+  clearTimeout(testPopupTimer);
+  
+  // Efekty wejścia
+  SFX.highConf();
+  flash('green');
+
+  const modal = document.getElementById('signal-modal-ov');
+  const candleContainer = document.getElementById('sig-modal-candle-container');
+  
+  if (modal && candleContainer) {
+    document.getElementById('sig-modal-icon').textContent = '🟢';
+    const ttl = document.getElementById('sig-modal-ttl');
+    ttl.textContent = `🚨 POP-UP TESTOWY (Zniknie za 10s)`;
+    ttl.style.color = 'var(--green-400)';
+
+    document.getElementById('sig-modal-pair').textContent = 'BTCUSDT (TEST)';
+    document.getElementById('sig-modal-entry').textContent = '$61,468.70';
+    document.getElementById('sig-modal-tp').textContent = '$63,005.40';
+    document.getElementById('sig-modal-sl').textContent = '$60,854.00';
+    document.getElementById('sig-modal-leverage').textContent = `Pozycja: $50.00 USDT (10x dźwignia)`;
+
+    // Wygeneruj świeczkę Hammer
+    candleContainer.innerHTML = generateCandleSVG(61200, 61468.7, 61500, 60854, 'LONG', 'Hammer (Młot)');
+
+    // Lista powodów
+    const reasonsEl = document.getElementById('sig-modal-reasons');
+    if (reasonsEl) {
+      reasonsEl.innerHTML = `
+        <div style="display:flex; align-items:flex-start; gap:6px;">
+          <span>🟩</span><span>[TEST] Wykryto formację Hammer (Młot) na 1h</span>
+        </div>
+        <div style="display:flex; align-items:flex-start; gap:6px;">
+          <span>🟩</span><span>[TEST] RSI w strefie wyprzedania (32.5)</span>
+        </div>
+        <div style="display:flex; align-items:flex-start; gap:6px;">
+          <span>🟩</span><span>[TEST] Cena powyżej wsparcia dynamicznego EMA50</span>
+        </div>
+        <div style="display:flex; align-items:flex-start; gap:6px;">
+          <span>🟩</span><span>[TEST] Klasyfikator ML zatwierdził wejście (pewność: 94%)</span>
+        </div>
+      `;
+    }
+
+    modal.classList.remove('hidden');
+    
+    // Zniknięcie po 10 sekundach
+    testPopupTimer = setTimeout(() => {
+      closeSignalModal();
+      toast('Test zakończony', 'Popup zamknął się automatycznie po 10 sekundach', 'info', 3000);
+    }, 10000);
+  }
+}
+
 function closeSignalModal() {
+  clearTimeout(testPopupTimer);
   const modal = document.getElementById('signal-modal-ov');
   if (modal) modal.classList.add('hidden');
 }
@@ -1470,5 +1527,6 @@ function closeDailyTradesModal() {
 }
 
 document.addEventListener('DOMContentLoaded', init);
+
 
 
