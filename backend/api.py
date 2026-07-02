@@ -286,7 +286,24 @@ async def daily_reset():
     risk_manager.reset_daily()
     await ws_manager.broadcast({"type": "DAILY_RESET"})
 
-# ── REST Endpoints ────────────────────────────────────────────
+# ── REST Endpoints ──────────────────────────────────────────────
+
+@app.get("/health")
+async def health_check():
+    """Endpoint zdrowia – używany przez UptimeRobot i self-ping do utrzymania 24/7."""
+    return {
+        "status": "ok",
+        "uptime": True,
+        "mode":   state["trading_mode"],
+        "ts":     datetime.now(timezone.utc).isoformat(),
+    }
+
+
+@app.get("/ping")
+async def ping():
+    """Prosty ping – alias /health."""
+    return {"pong": True}
+
 
 @app.get("/")
 async def index():
@@ -681,6 +698,21 @@ async def websocket_endpoint(websocket: WebSocket):
 
 # ── Startup ───────────────────────────────────────────────────
 
+async def keep_alive():
+    """
+    Self-ping co 10 minut, aby zapobiec uśpieniu Render free tier.
+    Pinguje własny endpoint /health przez HTTP.
+    """
+    try:
+        import httpx
+        own_url = os.getenv("RENDER_EXTERNAL_URL", f"http://localhost:{PORT}")
+        async with httpx.AsyncClient(timeout=10) as c:
+            r = await c.get(f"{own_url}/health")
+            logger.info(f"📶 Keep-alive ping: {r.status_code}")
+    except Exception as e:
+        logger.warning(f"Keep-alive ping failed: {e}")
+
+
 @app.on_event("startup")
 async def startup():
     try:
@@ -690,7 +722,9 @@ async def startup():
         # Harmonogram co 5 minut
         scheduler.add_job(run_analysis, "interval", seconds=ANALYZE_INTERVAL_SEC, id="analysis")
         # Reset dzienny o polnocy UTC
-        scheduler.add_job(daily_reset, "cron", hour=0, minute=0, id="daily_reset")
+        scheduler.add_job(daily_reset,  "cron", hour=0, minute=0, id="daily_reset")
+        # Keep-alive: pinguj siebie co 10 minut zeby Render nie usnął
+        scheduler.add_job(keep_alive, "interval", minutes=10, id="keep_alive")
         scheduler.start()
         logger.info(f"🚀 Bot uruchomiony! Tryb: {state['trading_mode']}  Dzwignia: {state['leverage']}x")
     except Exception as e:
