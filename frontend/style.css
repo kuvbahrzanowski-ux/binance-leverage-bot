@@ -795,3 +795,50 @@ body::after {
   box-shadow: 0 0 16px var(--green-glow);
 }
 
+/* ─── Bot Activity Bar ───────────────────── */
+.activity-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  background: rgba(59,130,246,0.03);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.5rem 0.85rem;
+  margin-bottom: 1.25rem;
+  font-size: 0.75rem;
+}
+.activity-pulse {
+  width: 6px;
+  height: 6px;
+  background-color: var(--green-400);
+  border-radius: 50%;
+  box-shadow: 0 0 0 0 rgba(52,211,153,0.7);
+  animation: pulse-glow 2s infinite;
+}
+.activity-label {
+  color: var(--text-3);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.activity-text {
+  color: var(--text-2);
+  font-family: var(--mono);
+}
+
+@keyframes pulse-glow {
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(52,211,153,0.7);
+  }
+  70% {
+    transform: scale(1);
+    box-shadow: 0 0 0 5px rgba(52,211,153,0);
+  }
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(52,211,153,0);
+  }
+}
+
+

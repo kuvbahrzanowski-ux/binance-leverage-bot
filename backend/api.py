@@ -101,7 +101,18 @@ scheduler = AsyncIOScheduler(timezone="UTC")
 async def run_analysis():
     """Glowna petla analizy – uruchamiana co 5 min przez scheduler."""
     logger.info("▶ Uruchamiam analize rynku...")
+    await ws_manager.broadcast({
+        "type": "BOT_ACTIVITY",
+        "payload": "🔍 Pobieranie świec z Binance (BTC, ETH, XRP)..."
+    })
+    
     analyses = analyze_all(leverage=state["leverage"])
+
+    await ws_manager.broadcast({
+        "type": "BOT_ACTIVITY",
+        "payload": "📊 Analizowanie wskaźników i formacji świecowych..."
+    })
+
 
     for a in analyses:
         symbol = a["symbol"]
@@ -223,10 +234,18 @@ async def run_analysis():
                     logger.error(f"Błąd zapisu sygnału monitorowania dla {symbol}: {e}")
 
     # Rozstrzygaj pending sygnaly
+    await ws_manager.broadcast({
+        "type": "BOT_ACTIVITY",
+        "payload": "🤖 Rozliczanie aktywnych transakcji (TP/SL)..."
+    })
     tracker.resolve_pending_signals()
     tracker.update_daily_stats()
 
     # Retrain ML model and update weights
+    await ws_manager.broadcast({
+        "type": "BOT_ACTIVITY",
+        "payload": "🧠 Optymalizacja modelu ML (trening)..."
+    })
     try:
         train_res = ml_engine.retrain_model()
         if train_res.get("success"):
@@ -236,6 +255,12 @@ async def run_analysis():
             })
     except Exception as e:
         logger.error(f"Blad automatycznego uczenia ML: {e}")
+
+    await ws_manager.broadcast({
+        "type": "BOT_ACTIVITY",
+        "payload": "⏳ Oczekiwanie na następny cykl analizy..."
+    })
+
 
     # Wyslij aktualizacje statystyk
     await ws_manager.broadcast({

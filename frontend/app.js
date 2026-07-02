@@ -562,6 +562,18 @@ function handleMsg(m) {
       }
       break;
 
+    case 'BOT_ACTIVITY': {
+      const txtEl = document.getElementById('bot-activity-text');
+      if (txtEl) {
+        txtEl.style.opacity = 0.5;
+        setTimeout(() => {
+          txtEl.textContent = m.payload;
+          txtEl.style.opacity = 1;
+        }, 150);
+      }
+      break;
+    }
+
     case 'WALLET_UPDATE':
       applyWalletData(m.payload);
       renderWalletHistory();
@@ -571,7 +583,7 @@ function handleMsg(m) {
       const p = m.payload;
       toast(
         `🔍 Monitorowanie ${p.direction} ${p.symbol.replace('USDT','')}`,
-        `Wykryto silny score ${p.score}/100. Oczekiwanie na potwierdzenie świecy 15m...`,
+        `Wykryto silny score ${p.score}/100. Oczekiwanie na potwierdzenie świecy 1h...`,
         'blue', 7000
       );
       break;
@@ -581,7 +593,7 @@ function handleMsg(m) {
       const p = m.payload;
       toast(
         `❌ Anulowano trend ${p.symbol.replace('USDT','')}`,
-        `Brak potwierdzenia kierunku ceny w 15m. Sygnał wygasł.`,
+        `Brak potwierdzenia kierunku ceny w 1h. Sygnał wygasł.`,
         'gray', 5000
       );
       fetchSigs();
@@ -591,15 +603,67 @@ function handleMsg(m) {
     case 'NEW_SIGNAL': {
       const a = m.payload;
       applyAnalysis(a);
+      
+      // Efekty dźwiękowe i wizualne
       if(a.confidence==='HIGH') SFX.highConf();
       else if(a.direction==='LONG') SFX.long();
       else SFX.short();
       flash(a.direction==='LONG'?'green':'red');
-      toast(
-        `🎯 ${a.direction} ${a.symbol.replace('USDT','')} [${a.score}/100]`,
-        `Entry ${f.price(a.entry_price,a.symbol)} · TP ${f.price(a.tp_price,a.symbol)} · SL ${f.price(a.sl_price,a.symbol)}`,
-        a.direction.toLowerCase(), 7000
-      );
+
+      // Wyszukaj nazwę formacji w reasons
+      let patternName = 'Świeca Swing';
+      const candlePatterns = [
+        'Hammer', 'Shooting Star', 'Bullish Engulfing', 'Bearish Engulfing',
+        'Morning Star', 'Evening Star', 'Support Bounce', 'Resistance Rejection'
+      ];
+      for (const pName of candlePatterns) {
+        if ((a.reasons || []).some(r => r.includes(pName))) {
+          patternName = pName;
+          break;
+        }
+      }
+
+      // Wyrenderuj i pokaż okno modalne
+      const modal = document.getElementById('signal-modal-ov');
+      const candleContainer = document.getElementById('sig-modal-candle-container');
+      
+      if (modal && candleContainer) {
+        document.getElementById('sig-modal-icon').textContent = a.direction === 'LONG' ? '🟢' : '🔴';
+        const ttl = document.getElementById('sig-modal-ttl');
+        ttl.textContent = `WYKRYTO SYGNAŁ ${a.direction}!`;
+        ttl.style.color = a.direction === 'LONG' ? 'var(--green-400)' : 'var(--red-400)';
+
+        document.getElementById('sig-modal-pair').textContent = a.symbol;
+        document.getElementById('sig-modal-entry').textContent = `$${f.price(a.entry_price, a.symbol)}`;
+        document.getElementById('sig-modal-tp').textContent = `$${f.price(a.tp_price, a.symbol)}`;
+        document.getElementById('sig-modal-sl').textContent = `$${f.price(a.sl_price, a.symbol)}`;
+        document.getElementById('sig-modal-leverage').textContent = `Pozycja: $${a.indicators?.position_usdt || S.positionUsdt || 50} USDT (${a.leverage}x dźwignia)`;
+
+        // Wygeneruj świeczkę SVG
+        const ind = a.indicators || {};
+        candleContainer.innerHTML = generateCandleSVG(
+          ind.open || a.entry_price * 0.99,
+          ind.close || a.entry_price,
+          Math.max(ind.open || 0, ind.close || 0, a.entry_price) * 1.005,
+          Math.min(ind.open || 999999, ind.close || 999999, a.entry_price) * 0.995,
+          a.direction,
+          patternName
+        );
+
+        // Lista powodów
+        const reasonsEl = document.getElementById('sig-modal-reasons');
+        if (reasonsEl) {
+          reasonsEl.innerHTML = (a.reasons || []).map(r => {
+            return `<div style="display:flex; align-items:flex-start; gap:6px;">
+              <span>${r.startsWith('✅') ? '🟩' : r.startsWith('❌') ? '🟥' : '🟨'}</span>
+              <span>${r.replace(/^[✅❌⚠️]/, '').trim()}</span>
+            </div>`;
+          }).join('');
+        }
+
+        modal.classList.remove('hidden');
+      }
+
       fetchSigs();
       break;
     }
@@ -1355,10 +1419,56 @@ async function showDailyTradesModal() {
   }
 }
 
+function generateCandleSVG(open, close, high, low, direction, patternName) {
+  const isUp = direction === 'LONG';
+  const color = isUp ? '#10b981' : '#ef4444';
+  
+  const minVal = Math.min(open, close, high, low);
+  const maxVal = Math.max(open, close, high, low);
+  const range = maxVal - minVal;
+  
+  if (range === 0) {
+    return `<svg width="60" height="100" style="background:#0a0c16; border-radius:4px; border: 1px solid var(--border);">
+      <line x1="30" y1="10" x2="30" y2="90" stroke="${color}" stroke-width="2"/>
+    </svg>`;
+  }
+
+  // Przeliczanie wysokości z 10px marginesem z góry i dołu
+  const getPercentY = (val) => {
+    return 10 + (90 - 10) * (1 - (val - minVal) / range);
+  };
+
+  const yHigh  = getPercentY(high);
+  const yLow   = getPercentY(low);
+  const yOpen  = getPercentY(open);
+  const yClose = getPercentY(close);
+
+  const rectY = Math.min(yOpen, yClose);
+  const rectHeight = Math.max(Math.abs(yOpen - yClose), 4); // min 4px wysokości korpusu
+
+  return `
+    <div style="display:flex; flex-direction:column; align-items:center; gap:6px; background: rgba(255,255,255,0.02); padding:10px; border-radius:8px; border: 1px solid var(--border); width: 80px;">
+      <svg width="60" height="100">
+        <!-- Wick -->
+        <line x1="30" y1="${yHigh}" x2="30" y2="${yLow}" stroke="${color}" stroke-width="2" />
+        <!-- Body -->
+        <rect x="18" y="${rectY}" width="24" height="${rectHeight}" fill="${color}" stroke="${color}" stroke-width="1.5" rx="2" />
+      </svg>
+      <div style="font-size:0.55rem; color:var(--text-3); font-weight:700; text-transform:uppercase; text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; width:70px;" title="${patternName}">${patternName}</div>
+    </div>
+  `;
+}
+
+function closeSignalModal() {
+  const modal = document.getElementById('signal-modal-ov');
+  if (modal) modal.classList.add('hidden');
+}
+
 function closeDailyTradesModal() {
   const modal = document.getElementById('trades-modal-ov');
   if (modal) modal.classList.add('hidden');
 }
 
 document.addEventListener('DOMContentLoaded', init);
+
 

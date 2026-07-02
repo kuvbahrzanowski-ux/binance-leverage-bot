@@ -30,6 +30,44 @@
 </div>
 
 <!-- ═══ CONFIRM MODAL ═══ -->
+<!-- ═══ NEW SIGNAL POPUP MODAL ═══ -->
+<div id="signal-modal-ov" class="modal-ov hidden">
+  <div class="modal-box" style="max-width: 480px; width: 90%; border: 1px solid var(--border-hot); box-shadow: 0 0 30px rgba(59,130,246,0.25);">
+    <div class="modal-icon" id="sig-modal-icon">🎯</div>
+    <div class="modal-ttl" id="sig-modal-ttl" style="color: var(--green-400);">WYKRYTO SYGNAŁ SWING!</div>
+    
+    <div style="display: flex; gap: 1.25rem; align-items: center; margin-top: 1rem; margin-bottom: 1.25rem; width: 100%;">
+      <!-- Left: Candle Visualizer -->
+      <div id="sig-modal-candle-container">
+        <!-- SVG Candle injected here -->
+      </div>
+      
+      <!-- Right: Trade Details -->
+      <div style="flex: 1; text-align: left; display: flex; flex-direction: column; gap: 0.4rem;">
+        <div style="font-size: 1.1rem; font-weight: 800;" id="sig-modal-pair">BTC/USDT</div>
+        <div style="font-family: var(--mono); font-size: 0.85rem; color: var(--text-2);">
+          Cena wejścia: <span id="sig-modal-entry" style="color:#fff; font-weight:600;">$0</span>
+        </div>
+        <div style="font-family: var(--mono); font-size: 0.85rem; color: var(--green-400);">
+          Take Profit: <span id="sig-modal-tp">$0</span>
+        </div>
+        <div style="font-family: var(--mono); font-size: 0.85rem; color: var(--red-400);">
+          Stop Loss: <span id="sig-modal-sl">$0</span>
+        </div>
+        <div style="font-size: 0.72rem; color: var(--text-3); font-weight: 600;" id="sig-modal-leverage">Pozycja: $50 USDT (10x dźwignia)</div>
+      </div>
+    </div>
+    
+    <div id="sig-modal-reasons" style="max-height: 150px; overflow-y: auto; text-align: left; background: rgba(0,0,0,0.2); border: 1px solid var(--border); border-radius: 8px; padding: 0.65rem; font-size: 0.72rem; width: 100%; display: flex; flex-direction: column; gap: 4px;">
+      <!-- Reasons list -->
+    </div>
+    
+    <div class="modal-btns" style="margin-top: 1.25rem; width: 100%;">
+      <button class="btn btn-blue" style="width: 100%;" onclick="closeSignalModal()">Potwierdzam</button>
+    </div>
+  </div>
+</div>
+
 <div id="modal-ov" class="modal-ov hidden">
   <div class="modal-box">
     <div class="modal-icon" id="modal-icon">⚠️</div>
@@ -124,6 +162,13 @@
      MAIN LAYOUT
 ═══════════════════════════════════════════ -->
 <main class="layout">
+
+  <!-- ══ BOT ACTIVITY STATUS BAR ══ -->
+  <div class="activity-bar">
+    <span class="activity-pulse"></span>
+    <span class="activity-label">Zadanie bota:</span>
+    <span id="bot-activity-text" class="activity-text">⏳ Oczekiwanie na następny cykl analizy...</span>
+  </div>
 
   <!-- ══ TICKER BAR ══ -->
   <section>
