@@ -2,6 +2,25 @@
    app.js – Binance Leverage Bot Dashboard Logic v2
    ═══════════════════════════════════════════════════════ */
 
+// Globalny handler błędów JS ułatwiający debugowanie na żywo u użytkownika
+window.onerror = function(message, source, lineno, colno, error) {
+  const shortSource = source ? source.substring(source.lastIndexOf('/') + 1) : 'unknown';
+  // Jeśli toast nie jest gotowy, używamy wbudowanego alertu
+  if (typeof toast !== 'undefined') {
+    toast('❌ Błąd JS', `${message} (${shortSource}:${lineno})`, 'warn', 12000);
+  } else {
+    alert(`Błąd JS: ${message} w ${shortSource}:${lineno}`);
+  }
+  return false;
+};
+
+window.onunhandledrejection = function(event) {
+  if (typeof toast !== 'undefined') {
+    toast('❌ Błąd Obietnicy', event.reason?.message || 'Nieobsłużony błąd async', 'warn', 12000);
+  }
+};
+
+
 // Dynamic backend configuration
 let savedAPI = localStorage.getItem('backend_api');
 if (savedAPI && savedAPI.includes("onrender.com") && savedAPI.includes(":8000")) {
