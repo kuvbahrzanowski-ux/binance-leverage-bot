@@ -1,0 +1,16 @@
+name: Keep Alive Ping (Render 24/7)
+
+on:
+  schedule:
+    # Uruchamiaj co 10 minut (optymalne, aby Render free tier nie zasnął)
+    - cron: '*/10 * * * *'
+  workflow_dispatch: # Umożliwia ręczne uruchomienie z poziomu GitHub Actions
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Backend Health Endpoint
+        run: |
+          echo "Pinguje backend..."
+          curl -f -s https://binance-leverage-bot-backend.onrender.com/health || echo "Błąd pingowania, ale próba wysłana"
