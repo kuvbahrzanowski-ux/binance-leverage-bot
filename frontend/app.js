@@ -463,11 +463,11 @@ function updateChartDecorations() {
 
     const entryLine = candleSeries.createPriceLine({
       price: entry,
-      color: '#3b82f6', // niebieski
+      color: 'rgba(203, 213, 225, 0.8)', // dim white (cbd5e1)
       lineWidth: 2,
       lineStyle: 1, // Dotted
       axisLabelVisible: true,
-      title: `${activeSig.isTest ? '[TEST] ' : ''}WEJŚCIE ${activeSig.direction} (${activeSig.leverage}x)`,
+      title: `${activeSig.isTest ? '[TEST] ' : ''}Próg wejścia`,
     });
     
     const tpLine = candleSeries.createPriceLine({
@@ -476,7 +476,7 @@ function updateChartDecorations() {
       lineWidth: 2,
       lineStyle: 0, // Solid
       axisLabelVisible: true,
-      title: `${activeSig.isTest ? '[TEST] ' : ''}TAKE PROFIT (${activeSig.potential_profit_pct || 250}%)`,
+      title: `${activeSig.isTest ? '[TEST] ' : ''}Próg wyjścia LONG`,
     });
 
     const slLine = candleSeries.createPriceLine({
@@ -485,7 +485,7 @@ function updateChartDecorations() {
       lineWidth: 2,
       lineStyle: 0, // Solid
       axisLabelVisible: true,
-      title: `${activeSig.isTest ? '[TEST] ' : ''}STOP LOSS (-${activeSig.potential_loss_pct || 80}%)`,
+      title: `${activeSig.isTest ? '[TEST] ' : ''}Próg wyjścia SHORT`,
     });
 
     activePriceLines.push(entryLine, tpLine, slLine);
@@ -1462,8 +1462,10 @@ async function showDailyTradesModal() {
 }
 
 function generateCandleSVG(open, close, high, low, direction, patternName) {
-  const isUp = direction === 'LONG';
-  const color = isUp ? '#10b981' : '#ef4444';
+  // Świeca w białym kolorze takim mało jasnym (dim white)
+  const bodyColor = 'rgba(203, 213, 225, 0.85)'; // #cbd5e1
+  const bodyBorder = 'rgba(148, 163, 184, 0.9)';  // #94a3b8
+  const wickColor = 'rgba(100, 116, 139, 0.8)';   // #64748b
   
   const minVal = Math.min(open, close, high, low);
   const maxVal = Math.max(open, close, high, low);
@@ -1471,7 +1473,7 @@ function generateCandleSVG(open, close, high, low, direction, patternName) {
   
   if (range === 0) {
     return `<svg width="60" height="100" style="background:#0a0c16; border-radius:4px; border: 1px solid var(--border);">
-      <line x1="30" y1="10" x2="30" y2="90" stroke="${color}" stroke-width="2"/>
+      <line x1="30" y1="10" x2="30" y2="90" stroke="${wickColor}" stroke-width="2"/>
     </svg>`;
   }
 
@@ -1492,9 +1494,9 @@ function generateCandleSVG(open, close, high, low, direction, patternName) {
     <div style="display:flex; flex-direction:column; align-items:center; gap:6px; background: rgba(255,255,255,0.02); padding:10px; border-radius:8px; border: 1px solid var(--border); width: 80px;">
       <svg width="60" height="100">
         <!-- Wick -->
-        <line x1="30" y1="${yHigh}" x2="30" y2="${yLow}" stroke="${color}" stroke-width="2" />
+        <line x1="30" y1="${yHigh}" x2="30" y2="${yLow}" stroke="${wickColor}" stroke-width="2" />
         <!-- Body -->
-        <rect x="18" y="${rectY}" width="24" height="${rectHeight}" fill="${color}" stroke="${color}" stroke-width="1.5" rx="2" />
+        <rect x="18" y="${rectY}" width="24" height="${rectHeight}" fill="${bodyColor}" stroke="${bodyBorder}" stroke-width="1.5" rx="2" />
       </svg>
       <div style="font-size:0.55rem; color:var(--text-3); font-weight:700; text-transform:uppercase; text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; width:70px;" title="${patternName}">${patternName}</div>
     </div>
