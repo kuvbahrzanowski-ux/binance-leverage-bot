@@ -76,23 +76,41 @@ class Tracker:
 
             for sig in pending:
                 try:
-                    ticker = client.get_ticker(sig.symbol)
-                    high   = float(ticker.get("highPrice", 0))
-                    low    = float(ticker.get("lowPrice", 0))
-
-                    if sig.direction == "LONG":
-                        if high >= sig.tp_price:
-                            self._resolve_signal(session, sig, "WIN", sig.tp_price)
-                        elif low <= sig.sl_price:
-                            self._resolve_signal(session, sig, "LOSS", sig.sl_price)
-                    else:  # SHORT
-                        if low <= sig.tp_price:
-                            self._resolve_signal(session, sig, "WIN", sig.tp_price)
-                        elif high >= sig.sl_price:
-                            self._resolve_signal(session, sig, "LOSS", sig.sl_price)
+                    # Zamień czas otwarcia na ms timestamp UTC
+                    start_ts_ms = int(sig.created_at.replace(tzinfo=timezone.utc).timestamp() * 1000)
+                    
+                    # Pobierz świeczki 5-minutowe od momentu otwarcia sygnału
+                    klines = client.get_klines(sig.symbol, "5m", limit=1000, startTime=start_ts_ms)
+                    
+                    # Fallback na aktualną cenę ticker
+                    if not klines:
+                        ticker = client.get_ticker(sig.symbol)
+                        current_price = float(ticker.get("lastPrice", 0))
+                        klines = [{"high": current_price, "low": current_price}]
+                    
+                    # Sprawdź świeczki od najstarszej do najnowszej
+                    for k in klines:
+                        high = float(k["high"])
+                        low = float(k["low"])
+                        
+                        if sig.direction == "LONG":
+                            if low <= sig.sl_price:
+                                self._resolve_signal(session, sig, "LOSS", sig.sl_price)
+                                break
+                            elif high >= sig.tp_price:
+                                self._resolve_signal(session, sig, "WIN", sig.tp_price)
+                                break
+                        else:  # SHORT
+                            if high >= sig.sl_price:
+                                self._resolve_signal(session, sig, "LOSS", sig.sl_price)
+                                break
+                            elif low <= sig.tp_price:
+                                self._resolve_signal(session, sig, "WIN", sig.tp_price)
+                                break
 
                 except Exception as e:
                     logger.warning(f"Blad resolve sygnalu {sig.id}: {e}")
+
 
             # Wygaszaj sygnaly starsze niz 7 dni
             old = session.query(Signal).filter(

@@ -322,6 +322,7 @@ let allSigs = [];
 function renderSigs(sigs) {
   allSigs = sigs;
   filterSigs(S.filter);
+  updateChartDecorations();
 }
 
 function filterSigs(sym) {
@@ -420,6 +421,56 @@ function drawWrChart(signals) {
    CANDLESTICK CHART (Lightweight Charts)
 ══════════════════════════════════════════════════════ */
 let lwChart = null, candleSeries = null, volSeries = null;
+let activePriceLines = [];
+
+function updateChartDecorations() {
+  if (!candleSeries) return;
+  
+  // Usuń stare linie ceny
+  activePriceLines.forEach(line => {
+    try { candleSeries.removePriceLine(line); } catch(e){}
+  });
+  activePriceLines = [];
+
+  // Znajdź aktywny (PENDING) sygnał dla wybranego symbolu
+  const sigsList = typeof allSigs !== 'undefined' ? allSigs : [];
+  const activeSig = sigsList.find(s => s.symbol === S.chart.sym && s.status === 'PENDING');
+
+  if (activeSig) {
+    const entry = activeSig.entry_price;
+    const tp = activeSig.tp_price;
+    const sl = activeSig.sl_price;
+
+    const entryLine = candleSeries.createPriceLine({
+      price: entry,
+      color: '#3b82f6', // niebieski
+      lineWidth: 2,
+      lineStyle: 1, // Dotted
+      axisLabelVisible: true,
+      title: `WEJŚCIE ${activeSig.direction} (${activeSig.leverage}x)`,
+    });
+    
+    const tpLine = candleSeries.createPriceLine({
+      price: tp,
+      color: '#10b981', // zielony
+      lineWidth: 2,
+      lineStyle: 0, // Solid
+      axisLabelVisible: true,
+      title: `TAKE PROFIT (${activeSig.potential_profit_pct || 250}%)`,
+    });
+
+    const slLine = candleSeries.createPriceLine({
+      price: sl,
+      color: '#ef4444', // czerwony
+      lineWidth: 2,
+      lineStyle: 0, // Solid
+      axisLabelVisible: true,
+      title: `STOP LOSS (-${activeSig.potential_loss_pct || 80}%)`,
+    });
+
+    activePriceLines.push(entryLine, tpLine, slLine);
+  }
+}
 
 function initChart() {
   const container = document.getElementById('chart-container');
@@ -457,8 +508,10 @@ async function loadChart() {
     const candles = klines.map(k=>({ time:Math.floor(k.open_time/1000), open:k.open, high:k.high, low:k.low, close:k.close }));
     candleSeries?.setData(candles);
     lwChart?.timeScale().fitContent();
+    updateChartDecorations();
   } catch(e){}
 }
+
 
 function switchSym(sym) {
   S.chart.sym = sym;
@@ -1228,4 +1281,84 @@ async function retrainMLNow() {
   }
 }
 
+async function showDailyTradesModal() {
+  const modal = document.getElementById('trades-modal-ov');
+  const list = document.getElementById('trades-modal-list');
+  if (!modal || !list) return;
+
+  list.innerHTML = '<div style="text-align:center; padding: 2rem; color:var(--text-2);">Pobieranie transakcji...</div>';
+  modal.classList.remove('hidden');
+
+  try {
+    // Pobierz ostatnie sygnały z API
+    const sigs = await fetch(`${API}/api/signals?limit=100`).then(r => r.json());
+    
+    // Filtruj tylko dzisiejsze (czas lokalny dnia dzisiejszego UTC)
+    const todayStr = new Date().toISOString().split('T')[0];
+    const todaySigs = sigs.filter(s => s.created_at.startsWith(todayStr));
+
+    if (todaySigs.length === 0) {
+      list.innerHTML = '<div class="empty">Brak zarejestrowanych transakcji z dzisiejszego dnia (UTC).</div>';
+      return;
+    }
+
+    list.innerHTML = '';
+    todaySigs.forEach(s => {
+      const time = new Date(s.created_at).toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      const dirColor = s.direction === 'LONG' ? 'var(--green-400)' : 'var(--red-400)';
+      
+      let statusBadge = '';
+      if (s.status === 'WIN') statusBadge = '<span style="background:rgba(16,185,129,0.15); color:var(--green-400); font-size:0.68rem; padding:2px 8px; border-radius:4px; font-weight:700;">🟢 ZYSK (WIN)</span>';
+      else if (s.status === 'LOSS') statusBadge = '<span style="background:rgba(239,68,68,0.15); color:var(--red-400); font-size:0.68rem; padding:2px 8px; border-radius:4px; font-weight:700;">🔴 STRATA (LOSS)</span>';
+      else if (s.status === 'MONITORING') statusBadge = '<span style="background:rgba(59,130,246,0.15); color:var(--blue-400); font-size:0.68rem; padding:2px 8px; border-radius:4px; font-weight:700;">🔍 MONITOROWANIE</span>';
+      else if (s.status === 'PENDING') statusBadge = '<span style="background:rgba(245,158,11,0.15); color:var(--gold); font-size:0.68rem; padding:2px 8px; border-radius:4px; font-weight:700;">⏳ AKTYWNA</span>';
+      else statusBadge = `<span style="background:rgba(255,255,255,0.08); color:var(--text-3); font-size:0.68rem; padding:2px 8px; border-radius:4px; font-weight:700;">${s.status}</span>`;
+
+      // Wielkość pozycji
+      const positionUsdt = s.indicators?.position_usdt || 50;
+
+      // Lista powodów
+      const reasonsList = (s.reasons || []).map(r => {
+        return `<div style="font-size:0.72rem; color:var(--text-2); display:flex; align-items:flex-start; gap:6px;">
+          <span>${r.startsWith('✅') ? '🟩' : r.startsWith('❌') ? '🟥' : '🟨'}</span>
+          <span>${r.replace(/^[✅❌⚠️]/, '').trim()}</span>
+        </div>`;
+      }).join('');
+
+      const itemHtml = `
+        <div style="background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: 10px; padding: 1rem; display: flex; flex-direction: column; gap: 0.65rem;">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <span style="font-family:var(--mono); font-size:0.75rem; color:var(--text-3); font-weight:500;">Godzina: ${time} (UTC)</span>
+            ${statusBadge}
+          </div>
+          
+          <div style="font-weight:800; font-size:0.95rem; display:flex; align-items:center; gap:8px;">
+            <span style="color:${dirColor}; text-shadow: 0 0 10px ${dirColor}20;">${s.direction}</span>
+            <span>${s.symbol}</span>
+            <span style="font-size:0.72rem; color:var(--text-3); font-weight:500; background:rgba(255,255,255,0.03); padding:2px 6px; border-radius:4px;">dźwignia ${s.leverage}x</span>
+            <span style="margin-left:auto; font-family:var(--mono); color:var(--accent); font-weight:700;">$${positionUsdt} USDT</span>
+          </div>
+          
+          <div style="border-top:1px solid rgba(255,255,255,0.06); padding-top:0.65rem;">
+            <div style="font-size:0.65rem; color:var(--text-3); text-transform:uppercase; letter-spacing:0.05em; margin-bottom:0.4rem; font-weight:700;">Zasady otwarcia (reasons):</div>
+            <div style="display:flex; flex-direction:column; gap:4px;">
+              ${reasonsList || '<div style="font-size:0.72rem; color:var(--text-3);">Brak szczegółowych wskaźników</div>'}
+            </div>
+          </div>
+        </div>
+      `;
+      list.insertAdjacentHTML('beforeend', itemHtml);
+    });
+
+  } catch (e) {
+    list.innerHTML = '<div class="empty" style="color:var(--red-400);">Błąd pobierania transakcji z API...</div>';
+  }
+}
+
+function closeDailyTradesModal() {
+  const modal = document.getElementById('trades-modal-ov');
+  if (modal) modal.classList.add('hidden');
+}
+
 document.addEventListener('DOMContentLoaded', init);
+

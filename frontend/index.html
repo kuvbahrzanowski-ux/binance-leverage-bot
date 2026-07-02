@@ -42,6 +42,25 @@
   </div>
 </div>
 
+<!-- ═══ DAILY TRADES DETAILS MODAL ═══ -->
+<div id="trades-modal-ov" class="modal-ov hidden">
+  <div class="modal-box" style="max-width: 600px; width: 90%;">
+    <div class="modal-icon">📈</div>
+    <div class="modal-ttl">Dzisiejsze Transakcje</div>
+    <div style="font-size:0.75rem; color:var(--text-3); text-align:center; margin-top:-0.5rem; margin-bottom:1rem;">Lista swing trade z dzisiejszego dnia (UTC)</div>
+    
+    <div id="trades-modal-list" style="max-height: 350px; overflow-y: auto; display: flex; flex-direction: column; gap: 0.75rem; width: 100%; text-align: left; padding-right: 4px;">
+      <!-- Populated via JS -->
+      <div class="empty">Brak transakcji dzisiaj...</div>
+    </div>
+    
+    <div class="modal-btns" style="margin-top: 1.5rem; width: 100%;">
+      <button class="btn btn-blue" style="width: 100%;" onclick="closeDailyTradesModal()">Zamknij</button>
+    </div>
+  </div>
+</div>
+
+
 <!-- ═══════════════════════════════════════════
      HEADER
 ═══════════════════════════════════════════ -->
@@ -78,9 +97,9 @@
   </div>
 
   <!-- Daily Trades Badge -->
-  <div id="daily-trades-badge" class="daily-badge" title="Transakcji dziś / limit dzienny" style="display:none;">
-    <span id="daily-trades-count">0</span>/<span id="daily-trades-limit">3</span>
-    <span style="font-size:0.65rem; opacity:0.7; margin-left:2px;">trade</span>
+  <div id="daily-trades-badge" class="daily-badge" title="Transakcji dziś / limit dzienny" style="display:none; align-items:center; gap:6px;">
+    <span><span id="daily-trades-count">0</span>/<span id="daily-trades-limit">3</span> trade</span>
+    <button class="btn btn-ghost" style="padding: 2px 6px; font-size: 0.62rem; height: auto; border: 1px solid rgba(16,185,129,0.3); line-height: 1; cursor: pointer;" onclick="showDailyTradesModal()">Zobacz</button>
   </div>
 
 
@@ -209,10 +228,11 @@
     </div>
     <div class="swing-stat">
       <div class="swing-stat-label">Transakcje dziś</div>
-      <div class="swing-stat-val">
+      <div class="swing-stat-val" style="display: flex; align-items: center; justify-content: center; gap: 6px;">
         <span id="sb-daily-count" style="color: var(--green-400)">0</span>
         <span style="opacity:0.5">/</span>
         <span id="sb-daily-limit">3</span>
+        <button class="btn btn-ghost" style="padding: 1px 6px; font-size: 0.62rem; height: auto; border: 1px solid var(--border); border-radius: 4px; cursor: pointer;" onclick="showDailyTradesModal()">Zobacz</button>
       </div>
     </div>
     <div class="swing-stat">

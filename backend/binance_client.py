@@ -67,11 +67,13 @@ class BinanceClient:
 
     # ── Dane publiczne ────────────────────────────────────────
 
-    def get_klines(self, symbol: str, interval: str, limit: int = 200) -> list:
+    def get_klines(self, symbol: str, interval: str, limit: int = 200, **kwargs) -> list:
         """Pobiera świece OHLCV."""
-        data = self._get("/fapi/v1/klines", {
+        params = {
             "symbol": symbol, "interval": interval, "limit": limit
-        })
+        }
+        params.update(kwargs)
+        data = self._get("/fapi/v1/klines", params)
         return [{
             "open_time": k[0],
             "open":  float(k[1]),
@@ -81,6 +83,7 @@ class BinanceClient:
             "volume": float(k[5]),
             "close_time": k[6],
         } for k in data]
+
 
     def get_ticker(self, symbol: str) -> dict:
         """Aktualny ticker (cena, wolumen 24h, zmiana)."""
