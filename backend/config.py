@@ -22,8 +22,8 @@ if "db.qtfwkxmtrfchgmkxaduu.supabase.co" in DATABASE_URL:
 
 # ── Handel ───────────────────────────────────────────────────
 TRADING_MODE       = os.getenv("TRADING_MODE", "ANALYZE")   # ANALYZE | ANALYZE_AND_TRADE
-DEFAULT_LEVERAGE   = int(os.getenv("DEFAULT_LEVERAGE", "10"))
-MAX_LEVERAGE       = int(os.getenv("MAX_LEVERAGE", "10"))
+DEFAULT_LEVERAGE   = int(os.getenv("DEFAULT_LEVERAGE", "100"))
+MAX_LEVERAGE       = int(os.getenv("MAX_LEVERAGE", "100"))
 MAX_OPEN_POSITIONS = int(os.getenv("MAX_OPEN_POSITIONS", "2"))
 MAX_DAILY_LOSS_PCT = float(os.getenv("MAX_DAILY_LOSS_PCT", "10.0"))
 
@@ -38,9 +38,9 @@ MAX_DAILY_TRADES = int(os.getenv("MAX_DAILY_TRADES", "15"))   # Zwiększony limi
 MIN_DAILY_TRADES = int(os.getenv("MIN_DAILY_TRADES", "5"))    # Target min 5 trades dziennie
 
 # ── Swing Trade – Cele TP/SL ─────────────────────────────────
-# Przy 10x dźwigni: 25% ruch = 250% zysku z pozycji
-SWING_TP_PCT = float(os.getenv("SWING_TP_PCT", "25.0"))    # TP: +25% ruch ceny
-SWING_SL_PCT = float(os.getenv("SWING_SL_PCT", "8.0"))     # SL: -8% ruch ceny
+# Przy 100x dźwigni: 2.5% ruch = 250% zysku z pozycji
+SWING_TP_PCT = float(os.getenv("SWING_TP_PCT", "2.5"))     # TP: +2.5% ruch ceny (250% na pozycji)
+SWING_SL_PCT = float(os.getenv("SWING_SL_PCT", "0.8"))     # SL: -0.8% ruch ceny (80% na pozycji)
 
 # ── Symbole ──────────────────────────────────────────────────
 SYMBOLS = os.getenv("SYMBOLS", "BTCUSDT,ETHUSDT,XRPUSDT").split(",")
