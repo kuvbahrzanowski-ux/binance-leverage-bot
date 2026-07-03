@@ -219,16 +219,11 @@ async def run_analysis():
                     sig_id = tracker.save_signal(a, status="MONITORING")
                     logger.info(f"🔍 Monitorowanie {a['direction']} {symbol} (score={a['score']}, pozycja=${state['position_usdt']})")
 
+                    a["signal_id"] = sig_id
+                    a["status"] = "MONITORING"
                     await ws_manager.broadcast({
-                        "type": "MONITORING_START",
-                        "payload": {
-                            "signal_id": sig_id,
-                            "symbol": symbol,
-                            "direction": a["direction"],
-                            "score": a["score"],
-                            "position_usdt": state["position_usdt"],
-                            "timestamp": datetime.now(timezone.utc).isoformat()
-                        }
+                        "type": "NEW_SIGNAL",
+                        "payload": a
                     })
                 except Exception as e:
                     logger.error(f"Błąd zapisu sygnału monitorowania dla {symbol}: {e}")
@@ -473,7 +468,7 @@ async def update_settings(req: SettingsRequest):
         logger.info(f"💰 Wielkość pozycji zmieniona na: ${clamped}")
 
     if req.leverage is not None:
-        state["leverage"] = max(1, min(10, req.leverage))
+        state["leverage"] = max(1, min(100, req.leverage))
         changed["leverage"] = state["leverage"]
 
     # Powiadom UI
@@ -606,9 +601,7 @@ class TradeRequest(BaseModel):
     direction: str
     leverage:  int = 10
 
-class SettingsRequest(BaseModel):
-    mode:    Optional[str] = None   # SIGNAL_ONLY | AUTO_TRADE
-    leverage: Optional[int] = None
+
 
 class CancelRequest(BaseModel):
     symbol: str
@@ -658,22 +651,7 @@ async def cancel_countdown(req: CancelRequest):
     return {"cancelled": True}
 
 
-@app.post("/api/settings")
-async def update_settings(req: SettingsRequest):
-    """Zmien tryb lub dzwignie."""
-    if req.mode in ("SIGNAL_ONLY", "AUTO_TRADE"):
-        state["trading_mode"] = req.mode
-        logger.info(f"Tryb zmieniony na: {req.mode}")
-    if req.leverage:
-        from config import MAX_LEVERAGE
-        if 1 <= req.leverage <= MAX_LEVERAGE:
-            state["leverage"] = req.leverage
-    await ws_manager.broadcast({
-        "type": "SETTINGS_CHANGED",
-        "mode": state["trading_mode"],
-        "leverage": state["leverage"],
-    })
-    return {"mode": state["trading_mode"], "leverage": state["leverage"]}
+
 
 
 @app.post("/api/risk/resume")

@@ -140,15 +140,28 @@ function setStatus(isOnline) {
 function handleWSMessage(msg) {
   if (msg.type === 'NEW_SIGNAL') {
     SFX.new();
-    toast('📡 NOWY SYGNAŁ', `${msg.payload.direction} dla ${msg.payload.symbol} (Score: ${msg.payload.score})`);
+    const sig = msg.payload;
+    const sigId = sig.signal_id || sig.id;
     
-    // Dodaj sygnał na początek
-    S.signals.unshift(msg.payload);
+    // Zapewnij pole id
+    if (!sig.id && sigId) sig.id = sigId;
+
+    toast(
+      sig.status === 'MONITORING' ? '🔍 ANALIZA RYNKU' : '📡 NOWY SYGNAŁ', 
+      `${sig.direction} na ${sig.symbol} (Score: ${sig.score})`
+    );
+    
+    // Unikaj duplikatów przy przejściu MONITORING -> PENDING
+    const existingIdx = S.signals.findIndex(s => s.id === sigId);
+    if (existingIdx !== -1) {
+      S.signals[existingIdx] = { ...S.signals[existingIdx], ...sig };
+    } else {
+      S.signals.unshift(sig);
+    }
     renderSignalsFeed();
     renderTradesTable();
   } 
   else if (msg.type === 'SIGNAL_RESOLVED') {
-    // Ktoś wygrał lub przegrał
     if (msg.payload.status === 'WIN') SFX.win();
     else if (msg.payload.status === 'LOSS') SFX.loss();
     
@@ -157,19 +170,33 @@ function handleWSMessage(msg) {
       `${msg.payload.symbol} zamknął się na ${msg.payload.status === 'WIN' ? 'Take Profit' : 'Stop Loss'}`
     );
 
-    // Zaktualizuj status sygnału w tablicy
-    const target = S.signals.find(s => s.id === msg.payload.signal_id);
+    const sigId = msg.payload.signal_id || msg.payload.id;
+    const target = S.signals.find(s => s.id === sigId);
     if (target) {
       target.status = msg.payload.status;
       target.pnl_pct = msg.payload.pnl_pct;
       target.result_price = msg.payload.result_price;
     }
     
-    fetchInitData(); // odśwież portfel i wagi
+    fetchInitData();
   }
-  else if (msg.type === 'SETTINGS_UPDATE') {
-    S.mode = msg.payload.trading_mode || msg.payload.mode;
+  else if (msg.type === 'SIGNAL_EXPIRED') {
+    const sigId = msg.payload.signal_id || msg.payload.id;
+    const target = S.signals.find(s => s.id === sigId);
+    if (target) {
+      target.status = 'EXPIRED';
+    }
+    renderSignalsFeed();
+    renderTradesTable();
+  }
+  else if (msg.type === 'SETTINGS_UPDATE' || msg.type === 'SETTINGS_CHANGED') {
+    const payload = msg.payload || msg;
+    S.mode = payload.trading_mode || payload.mode;
+    if (payload.leverage) S.leverage = payload.leverage;
     syncToggleUI();
+  }
+  else if (['TRADE_OPENED', 'TRADE_CLOSED', 'ALL_CLOSED'].includes(msg.type)) {
+    fetchInitData();
   }
 }
 
