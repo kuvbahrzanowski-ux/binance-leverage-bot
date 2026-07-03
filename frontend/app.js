@@ -533,224 +533,55 @@ function updateChartDecorations() {
 }
 
 
-// lwChart and candleSeries are already declared globally above
-let secondsLeft = 10;
-let overlayTimer = null;
+let tvWidget = null;
 
 function initChart() {
-  const container = document.getElementById('chart-container');
-  const canvas = document.getElementById('chart-overlay-canvas');
-  if (!container) return;
-
-  lwChart = LightweightCharts.createChart(container, {
-    layout: { background: { color: 'transparent' }, textColor: '#475569' },
-    grid: { vertLines: { color: 'rgba(59,130,246,0.06)' }, horzLines: { color: 'rgba(59,130,246,0.06)' } },
-    crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
-    rightPriceScale: { borderColor: 'rgba(59,130,246,0.1)' },
-    timeScale: { borderColor: 'rgba(59,130,246,0.1)', timeVisible: true, secondsVisible: false },
-    height: 370,
-  });
-
-  candleSeries = lwChart.addCandlestickSeries({
-    upColor: '#10b981', downColor: '#ef4444',
-    borderUpColor: '#10b981', borderDownColor: '#ef4444',
-    wickUpColor: '#10b981', wickDownColor: '#ef4444',
-  });
-
-  // Aktualizacja OHLC legedy przy przesunięciu kursora
-  lwChart.subscribeCrosshairMove(p => {
-    if (!p.time || !candleSeries) return;
-    const d = p.seriesData.get(candleSeries);
-    if (d) {
-      set('o-o', d.open);   set('o-h', d.high);
-      set('o-l', d.low);    set('o-c', d.close);
-      set('o-v', d.volume || '–');
-      const oEl = document.getElementById('o-c');
-      if (oEl) oEl.style.color = d.close >= d.open ? 'var(--green-400)' : 'var(--red-400)';
-    }
-  });
-
-  // Zoom/Scroll przerysowuje strefę testową / pozycję
-  lwChart.timeScale().subscribeVisibleTimeRangeChange(() => {
-    drawOverlay();
-  });
-
-  // Automatyczny Resize dla wykresu i płótna overlay
-  if (canvas) {
-    const resizeObserver = new ResizeObserver(entries => {
-      for (let entry of entries) {
-        const w = entry.contentRect.width;
-        const h = entry.contentRect.height;
-        lwChart.resize(w, h);
-        canvas.width = w;
-        canvas.height = h;
-        drawOverlay();
-      }
-    });
-    resizeObserver.observe(container);
-  }
-
   loadChart();
 }
 
-async function loadChart() {
+function loadChart() {
+  const container = document.getElementById('chart-container');
+  if (!container) return;
+
+  // Wyczyść kontener i stwórz element pod widget TradingView
+  container.innerHTML = `<div id="tradingview-widget" style="width:100%; height:370px;"></div>`;
+
+  let interval = "15";
+  if (S.chart.tf === '1m') interval = "1";
+  else if (S.chart.tf === '5m') interval = "5";
+  else if (S.chart.tf === '15m') interval = "15";
+  else if (S.chart.tf === '1h') interval = "60";
+  else if (S.chart.tf === '4h') interval = "240";
+
+  const symbolMap = {
+    'BTCUSDT': 'BINANCE:BTCUSDT',
+    'ETHUSDT': 'BINANCE:ETHUSDT',
+    'XRPUSDT': 'BINANCE:XRPUSDT'
+  };
+  const tvSymbol = symbolMap[S.chart.sym] || `BINANCE:${S.chart.sym}`;
+
   try {
-    const klines = await fetch(`${API}/api/klines/${S.chart.sym}?interval=${S.chart.tf}&limit=200`).then(r => r.json());
-    const candles = klines.map(k => ({
-      time: Math.floor(k.open_time / 1000),
-      open: k.open,
-      high: k.high,
-      low: k.low,
-      close: k.close,
-      volume: Math.round(k.volume)
-    }));
-    
-    if (!S.chart) S.chart = {};
-    S.chart.candles = candles;
-    
-    candleSeries?.setData(candles);
-    lwChart?.timeScale().fitContent();
-    
-    updateChartDecorations();
-    drawOverlay();
+    tvWidget = new TradingView.widget({
+      "autosize": true,
+      "symbol": tvSymbol,
+      "interval": interval,
+      "timezone": "Etc/UTC",
+      "theme": "dark",
+      "style": "1", // Świece
+      "locale": "pl",
+      "toolbar_bg": "#0f172a",
+      "enable_publishing": false,
+      "hide_side_toolbar": false, // Pokaż przybory do rysowania (długa/krótka pozycja!)
+      "allow_symbol_change": false,
+      "container_id": "tradingview-widget",
+      "studies": [
+        "RSI@tv-basicstudies",
+        "MASimple@tv-basicstudies"
+      ],
+      "loading_screen": { "backgroundColor": "#0a0c16" }
+    });
   } catch (e) {
-    console.error("Błąd ładowania wykresu:", e);
-  }
-}
-
-function drawOverlay() {
-  const canvas = document.getElementById('chart-overlay-canvas');
-  if (!canvas) return;
-  const ctx = canvas.getContext('2d');
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-  if (!candleSeries || !lwChart) return;
-
-  const sigsList = typeof allSigs !== 'undefined' ? allSigs : [];
-  let activeSig = sigsList.find(s => s.symbol === S.chart.sym && s.status === 'PENDING');
-
-  if (!activeSig && S.testActive) {
-    // Generuj strefę testową
-    const priceEl = document.getElementById(`price-${S.chart.sym}`);
-    const priceText = priceEl ? priceEl.textContent : '';
-    const currentPrice = parseFloat(priceText.replace(/[^0-9.]/g, '')) || 1000;
-
-    const dir = S.testDirection || 'LONG';
-    const isLong = dir === 'LONG';
-
-    activeSig = {
-      symbol: S.chart.sym,
-      direction: dir,
-      entry_price: currentPrice,
-      tp_price: isLong ? (currentPrice * 1.025) : (currentPrice * 0.975),
-      sl_price: isLong ? (currentPrice * 0.992) : (currentPrice * 1.008),
-      leverage: 10,
-      isTest: true
-    };
-  }
-
-  if (!activeSig) return;
-
-  // Współrzędne ceny (Y)
-  const yEntry = candleSeries.priceToCoordinate(activeSig.entry_price);
-  const yTp = candleSeries.priceToCoordinate(activeSig.tp_price);
-  const ySl = candleSeries.priceToCoordinate(activeSig.sl_price);
-
-  if (yEntry === null || yTp === null || ySl === null) return;
-
-  // Współrzędna czasu (X) - wejście na ostatniej świeczce
-  const candles = S.chart?.candles || [];
-  let startX = canvas.width - 150;
-  if (candles.length > 0) {
-    const lastCandle = candles[candles.length - 1];
-    const xCoord = lwChart.timeScale().timeToCoordinate(lastCandle.time);
-    if (xCoord !== null) startX = xCoord;
-  }
-
-  const endX = canvas.width - 50; // Pomijamy margines skali ceny z prawej strony
-  if (startX >= endX) startX = endX - 100;
-  const width = endX - startX;
-
-  const isLong = activeSig.direction === 'LONG';
-
-  // Kolorystyka TradingView (Zielony zysk, czerwona strata)
-  const greenFill = 'rgba(16, 185, 129, 0.18)'; 
-  const redFill = 'rgba(239, 68, 68, 0.18)';
-  const greenBorder = 'rgba(16, 185, 129, 0.6)';
-  const redBorder = 'rgba(239, 68, 68, 0.6)';
-
-  ctx.lineWidth = 1.5;
-
-  if (isLong) {
-    // LONG: Zysk na górze, Strata na dole
-    // Strefa TP
-    ctx.fillStyle = greenFill;
-    ctx.fillRect(startX, yTp, width, yEntry - yTp);
-    ctx.strokeStyle = greenBorder;
-    ctx.strokeRect(startX, yTp, width, yEntry - yTp);
-
-    // Strefa SL
-    ctx.fillStyle = redFill;
-    ctx.fillRect(startX, yEntry, width, ySl - yEntry);
-    ctx.strokeStyle = redBorder;
-    ctx.strokeRect(startX, yEntry, width, ySl - yEntry);
-  } else {
-    // SHORT: Strata na górze, Zysk na dole
-    // Strefa SL
-    ctx.fillStyle = redFill;
-    ctx.fillRect(startX, ySl, width, yEntry - ySl);
-    ctx.strokeStyle = redBorder;
-    ctx.strokeRect(startX, ySl, width, yEntry - ySl);
-
-    // Strefa TP
-    ctx.fillStyle = greenFill;
-    ctx.fillRect(startX, yEntry, width, yTp - yEntry);
-    ctx.strokeStyle = greenBorder;
-    ctx.strokeRect(startX, yEntry, width, yTp - yEntry);
-  }
-
-  // Rysowanie poziomej linii wejścia (biała przerywana)
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
-  ctx.setLineDash([4, 4]);
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(startX, yEntry);
-  ctx.lineTo(endX, yEntry);
-  ctx.stroke();
-  ctx.setLineDash([]);
-
-  // Opisy tekstowe wewnątrz stref
-  ctx.fillStyle = '#ffffff';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-
-  // Opis TP
-  ctx.font = 'bold 9px Inter';
-  const yTpMid = isLong ? (yTp + yEntry) / 2 : (yTp + yEntry) / 2;
-  ctx.fillText(`TP: +25% (Target)`, startX + width / 2, yTpMid - 6);
-  ctx.font = '600 8px JetBrains Mono';
-  ctx.fillStyle = 'rgba(255,255,255,0.7)';
-  ctx.fillText(f.price(activeSig.tp_price, S.chart.sym), startX + width / 2, yTpMid + 6);
-
-  // Opis SL
-  ctx.fillStyle = '#ffffff';
-  ctx.font = 'bold 9px Inter';
-  const ySlMid = isLong ? (ySl + yEntry) / 2 : (ySl + yEntry) / 2;
-  ctx.fillText(`SL: -80% (Stop)`, startX + width / 2, ySlMid - 6);
-  ctx.font = '600 8px JetBrains Mono';
-  ctx.fillStyle = 'rgba(255,255,255,0.7)';
-  ctx.fillText(f.price(activeSig.sl_price, S.chart.sym), startX + width / 2, ySlMid + 6);
-
-  // Etykieta czasu / typu na środku linii wejścia
-  if (S.testActive) {
-    ctx.fillStyle = isLong ? '#10b981' : '#ef4444';
-    ctx.beginPath();
-    ctx.roundRect(startX + 10, yEntry - 8, 80, 16, 4);
-    ctx.fill();
-
-    ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 8px Inter';
-    ctx.fillText(`TEST ${activeSig.direction} | ${secondsLeft}s`, startX + 50, yEntry);
+    console.error("Błąd ładowania TradingView widget:", e);
   }
 }
 
@@ -1715,19 +1546,9 @@ function generateCandleSVG(open, close, high, low, direction, patternName) {
 let testPopupTimer = null;
 
 function triggerTestCandlePopup(direction = 'LONG') {
-  clearTimeout(testPopupTimer);
-  clearInterval(overlayTimer);
-  secondsLeft = 10;
-  
   // Efekty wejścia
   SFX.highConf();
   flash(direction === 'LONG' ? 'green' : 'red');
-
-  // Aktywuj testowy stan na wykresie
-  S.testActive = true;
-  S.testDirection = direction;
-  updateChartDecorations();
-  drawOverlay();
 
   const modal = document.getElementById('signal-modal-ov');
   const candleContainer = document.getElementById('sig-modal-candle-container');
@@ -1742,7 +1563,6 @@ function triggerTestCandlePopup(direction = 'LONG') {
 
     document.getElementById('sig-modal-pair').textContent = S.chart.sym + ` (TEST ${direction})`;
     
-    // Oblicz ceny dopasowane do bieżącej ceny wybranego krypto
     const priceEl = document.getElementById(`price-${S.chart.sym}`);
     const priceText = priceEl ? priceEl.textContent : '';
     const currentPrice = parseFloat(priceText.replace(/[^0-9.]/g, '')) || 60000;
@@ -1804,31 +1624,9 @@ function triggerTestCandlePopup(direction = 'LONG') {
 }
 
 function closeSignalModal() {
-  clearTimeout(testPopupTimer);
-  clearInterval(overlayTimer);
-  
-  // Ukryj samo okienko popup
   const modal = document.getElementById('signal-modal-ov');
   if (modal) modal.classList.add('hidden');
-  
-  toast('Podgląd na wykresie', 'Linie testowe znikną z wykresu za 10 sekund...', 'info', 3000);
-  
-  // Inicjalizuj odliczanie
-  secondsLeft = 10;
-  drawOverlay();
-
-  overlayTimer = setInterval(() => {
-    secondsLeft--;
-    if (secondsLeft <= 0) {
-      clearInterval(overlayTimer);
-      S.testActive = false;
-      updateChartDecorations();
-      drawOverlay();
-      toast('Test zakończony', 'Linie testowe na wykresie wygasły.', 'info', 2500);
-    } else {
-      drawOverlay();
-    }
-  }, 1000);
+  toast('Test gotowy', 'Możesz teraz sprawdzić wykres TradingView i nałożyć narzędzie Pozycja Długa/Krótka.', 'info', 3000);
 }
 
 function closeDailyTradesModal() {

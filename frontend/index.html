@@ -8,6 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
   <script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
+  <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
   <link rel="stylesheet" href="style.css?v=2.3"/>
 </head>
 <body>
@@ -324,7 +325,7 @@
           </div>
         </div>
 
-        <div class="chart-ohlc-bar">
+        <div class="chart-ohlc-bar" style="display: none;">
           <div class="ohlc-item"><span>O</span><strong id="o-o">–</strong></div>
           <div class="ohlc-item"><span>H</span><strong id="o-h" style="color:var(--green-400)">–</strong></div>
           <div class="ohlc-item"><span>L</span><strong id="o-l" style="color:var(--red-400)">–</strong></div>
@@ -332,23 +333,7 @@
           <div class="ohlc-item" style="margin-left:auto"><span>Vol</span><strong id="o-v">–</strong></div>
         </div>
 
-        <div style="display: flex; gap: 4px; width: 100%; background: #0b0e17; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; padding: 4px;">
-          <!-- Left Sidebar (TradingView Style Toolbar) -->
-          <div style="width: 36px; display: flex; flex-direction: column; align-items: center; gap: 12px; border-right: 1px solid rgba(255,255,255,0.05); padding-top: 8px; background: #0a0c16; user-select: none;">
-            <div style="font-size: 0.9rem; cursor: pointer; opacity: 0.5;" title="Kursor (Crosshair)">➕</div>
-            <div style="font-size: 1rem; cursor: pointer; opacity: 0.5;" title="Linia Trendu">↗️</div>
-            <div style="font-size: 1rem; cursor: pointer; opacity: 1; color: var(--accent);" title="Pozycja LONG/SHORT (Automatyczna)">📊</div>
-            <div style="font-size: 1rem; cursor: pointer; opacity: 0.5;" title="Pędzel">🖌️</div>
-            <div style="font-size: 1rem; cursor: pointer; opacity: 0.5;" title="Tekst">💬</div>
-            <div style="font-size: 1rem; cursor: pointer; opacity: 0.5;" title="Linijka">📏</div>
-          </div>
-          
-          <!-- Chart Container with Canvas Overlay -->
-          <div id="chart-wrapper" style="flex: 1; position: relative; height: 370px;">
-            <div id="chart-container" style="width: 100%; height: 100%;"></div>
-            <canvas id="chart-overlay-canvas" style="position: absolute; top: 0; left: 0; pointer-events: none; z-index: 10;"></canvas>
-          </div>
-        </div>
+        <div id="chart-container" style="width: 100%; height: 370px;"></div>
 
         <!-- Indicator mini-bars -->
         <div class="ind-bar">
