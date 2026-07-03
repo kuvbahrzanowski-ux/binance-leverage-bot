@@ -135,8 +135,58 @@ def init_db():
                 session.add(wallet)
                 session.commit()
                 logger.info("Utworzono wirtualny portfel z saldem poczatkowym 1000 USDT")
+            
+            # Seed mock signals to allow immediate ML training
+            resolved_count = session.query(Signal).filter(Signal.status.in_(["WIN", "LOSS"])).count()
+            if resolved_count < 10:
+                logger.info("Seeding database with resolved signals for ML training...")
+                from datetime import timedelta
+                
+                mock_signals = [
+                    {"symbol": "BTCUSDT", "direction": "LONG", "score": 82, "status": "WIN", "pnl": 25.0, "rsi": 32.5, "macd": 0.002, "bb": 0.08, "vol": 2.1, "fund": -0.002},
+                    {"symbol": "ETHUSDT", "direction": "SHORT", "score": 75, "status": "WIN", "pnl": 25.0, "rsi": 78.2, "macd": -0.005, "bb": 0.95, "vol": 1.8, "fund": 0.0015},
+                    {"symbol": "XRPUSDT", "direction": "LONG", "score": 68, "status": "LOSS", "pnl": -80.0, "rsi": 45.1, "macd": -0.001, "bb": 0.35, "vol": 0.9, "fund": -0.0005},
+                    {"symbol": "BTCUSDT", "direction": "LONG", "score": 88, "status": "WIN", "pnl": 25.0, "rsi": 28.0, "macd": 0.004, "bb": 0.03, "vol": 3.4, "fund": -0.003},
+                    {"symbol": "ETHUSDT", "direction": "LONG", "score": 70, "status": "WIN", "pnl": 25.0, "rsi": 38.0, "macd": 0.001, "bb": 0.12, "vol": 1.6, "fund": -0.001},
+                    {"symbol": "XRPUSDT", "direction": "SHORT", "score": 80, "status": "WIN", "pnl": 25.0, "rsi": 82.0, "macd": -0.008, "bb": 0.98, "vol": 2.5, "fund": 0.002},
+                    {"symbol": "BTCUSDT", "direction": "SHORT", "score": 65, "status": "LOSS", "pnl": -80.0, "rsi": 62.4, "macd": 0.0005, "bb": 0.72, "vol": 1.1, "fund": 0.0008},
+                    {"symbol": "ETHUSDT", "direction": "SHORT", "score": 85, "status": "WIN", "pnl": 25.0, "rsi": 84.1, "macd": -0.006, "bb": 0.99, "vol": 2.8, "fund": 0.0025},
+                    {"symbol": "XRPUSDT", "direction": "LONG", "score": 72, "status": "WIN", "pnl": 25.0, "rsi": 30.5, "macd": 0.0015, "bb": 0.05, "vol": 1.9, "fund": -0.0015},
+                    {"symbol": "BTCUSDT", "direction": "SHORT", "score": 76, "status": "LOSS", "pnl": -80.0, "rsi": 68.2, "macd": 0.001, "bb": 0.81, "vol": 1.3, "fund": 0.0004},
+                    {"symbol": "ETHUSDT", "direction": "LONG", "score": 79, "status": "WIN", "pnl": 25.0, "rsi": 33.1, "macd": 0.003, "bb": 0.07, "vol": 2.2, "fund": -0.0022},
+                    {"symbol": "XRPUSDT", "direction": "SHORT", "score": 62, "status": "LOSS", "pnl": -80.0, "rsi": 59.8, "macd": -0.0005, "bb": 0.65, "vol": 0.8, "fund": 0.0002}
+                ]
+                
+                for i, ms in enumerate(mock_signals):
+                    entry = 60000.0 if ms["symbol"] == "BTCUSDT" else (1700.0 if ms["symbol"] == "ETHUSDT" else 1.08)
+                    tp = entry * 1.025 if ms["direction"] == "LONG" else entry * 0.975
+                    sl = entry * 0.992 if ms["direction"] == "LONG" else entry * 1.008
+                    
+                    sig = Signal(
+                        symbol      = ms["symbol"],
+                        direction   = ms["direction"],
+                        score       = ms["score"],
+                        confidence  = "HIGH" if ms["score"] >= 80 else "MEDIUM",
+                        entry_price = entry,
+                        tp_price    = tp,
+                        sl_price    = sl,
+                        status      = ms["status"],
+                        pnl_pct     = ms["pnl"],
+                        result_price = tp if ms["status"] == "WIN" else sl,
+                        funding_rate = ms["fund"],
+                        indicators  = {
+                            "rsi": ms["rsi"],
+                            "macd_hist": ms["macd"],
+                            "bb_pct": ms["bb"],
+                            "volume_ratio": ms["vol"]
+                        },
+                        created_at  = datetime.now(timezone.utc) - timedelta(days=2, hours=i*3)
+                    )
+                    session.add(sig)
+                session.commit()
+                logger.info("Zasilono baze danych 12 sygnalami testowymi do uczenia ML.")
     except Exception as e:
-        logger.error(f"Blad inicjalizacji portfela: {e}")
+        logger.error(f"Blad inicjalizacji portfela lub danych testowych: {e}")
 
 
 def get_session() -> Session:

@@ -342,6 +342,7 @@ function renderSigs(sigs) {
   allSigs = sigs;
   filterSigs(S.filter);
   updateChartDecorations();
+  renderWalletHistory();
 }
 
 function filterSigs(sym) {
@@ -826,22 +827,46 @@ document.getElementById('modal-no').onclick = ()=>{
 function refreshModeUI() {
   const isAnalyze = S.mode === 'ANALYZE';
   const isTrade   = S.mode === 'ANALYZE_AND_TRADE';
+  
+  // Sync checkbox toggle switch
+  const toggle = document.getElementById('signals-toggle');
+  if (toggle) toggle.checked = isTrade;
+  
+  const label = document.getElementById('signals-toggle-label');
+  if (label) {
+    label.textContent = isTrade ? 'WŁĄCZONE' : 'WYŁĄCZONE';
+    label.style.color = isTrade ? 'var(--green-400)' : 'var(--red-400)';
+  }
+
   const btnA = document.getElementById('btn-analyze');
   const btnT = document.getElementById('btn-trade');
   if (btnA) btnA.className = `toggle-btn${isAnalyze ? ' active-signal' : ''}`;
   if (btnT) btnT.className = `toggle-btn${isTrade   ? ' active-auto'   : ''}`;
   set('ftr-mode', isAnalyze ? '🔍 Tylko Analiza' : '🔍💰 Analizuj + Obstawiaj');
 
-  // Swing status bar - mode display
-  const modeEl = document.getElementById('mode-display');
-  if (modeEl) {
-    modeEl.textContent = isAnalyze ? '🔍 Tylko Analiza' : '🔍💰 Obstawianie Włączone';
-    modeEl.style.color = isTrade ? 'var(--green-400)' : 'var(--text-1)';
-  }
-
   // Badge w navbarze
   const badge = document.getElementById('daily-trades-badge');
   if (badge) badge.style.display = isTrade ? 'flex' : 'none';
+}
+
+async function toggleSignals(checkbox) {
+  const newMode = checkbox.checked ? 'ANALYZE_AND_TRADE' : 'ANALYZE';
+  try {
+    const res = await fetch(`${API}/api/settings`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode: newMode })
+    }).then(r => r.json());
+    
+    if (res.status === 'ok') {
+      S.mode = res.mode;
+      refreshModeUI();
+      toast('Tryb bota zmieniony', `Sygnały i obstawianie zostały ${checkbox.checked ? 'włączone' : 'wyłączone'}.`, checkbox.checked ? 'win' : 'info');
+    }
+  } catch (e) {
+    checkbox.checked = !checkbox.checked; // Przywróć stan przy błędzie
+    toast('Błąd zapisu', 'Nie udało się połączyć z backendem.', 'warn');
+  }
 }
 
 function refreshLevUI() {
@@ -1185,45 +1210,115 @@ async function resetWallet() {
 
 function renderWalletHistory() {
   const feed = document.getElementById('wallet-history-feed');
-  if (!feed) return;
+  const tableBody = document.getElementById('trades-table-body');
+  const summaryEl = document.getElementById('stats-summary-text');
   
-  // Pobierz skończone sygnały z globalnej tablicy allSigs
-  const closedSignals = (typeof allSigs !== 'undefined' ? allSigs : []).filter(s => s.status === 'WIN' || s.status === 'LOSS');
+  const signalsList = (typeof allSigs !== 'undefined' ? allSigs : []);
   
-  if (closedSignals.length === 0) {
-    feed.innerHTML = '<div class="empty">Brak historii transakcji...</div>';
-    return;
+  // 1. Render feed w prawym panelu (tylko zamknięte transakcje WIN/LOSS)
+  const closedSignals = signalsList.filter(s => s.status === 'WIN' || s.status === 'LOSS');
+  
+  if (feed) {
+    if (closedSignals.length === 0) {
+      feed.innerHTML = '<div class="empty">Brak historii transakcji...</div>';
+    } else {
+      // Posortuj od najnowszych
+      const sortedClosed = [...closedSignals].sort((a,b) => new Date(b.resolved_at || b.created_at) - new Date(a.resolved_at || a.created_at));
+      feed.innerHTML = sortedClosed.map(s => {
+        const positionUsdt = S.positionUsdt || 50;
+        const pnlUsdt = positionUsdt * ((s.pnl_pct || 0) / 100);
+        const sign = pnlUsdt >= 0 ? '+' : '';
+        const col = pnlUsdt >= 0 ? 'var(--green-400)' : 'var(--red-400)';
+        const bgCol = pnlUsdt >= 0 ? 'rgba(0,192,115,0.06)' : 'rgba(255,101,101,0.06)';
+        const borderCol = pnlUsdt >= 0 ? 'rgba(0,192,115,0.12)' : 'rgba(255,101,101,0.12)';
+        
+        return `
+          <div style="background: ${bgCol}; border: 1px solid ${borderCol}; border-radius: 8px; padding: 0.85rem; display: flex; justify-content: space-between; align-items: center;">
+            <div>
+              <div style="font-weight: 700; font-size: 0.8rem; color: var(--text-1); display: flex; align-items: center; gap: 6px;">
+                <span style="color: ${col}">${s.direction}</span> ${s.symbol.replace('USDT','')}
+                <span style="font-size: 0.65rem; background: rgba(255,255,255,0.06); padding: 2px 6px; border-radius: 4px; color: var(--text-3); font-weight: normal;">${s.leverage}x</span>
+              </div>
+              <div style="font-size: 0.65rem; color: var(--text-3); margin-top: 4px;">
+                Wejście: ${f.price(s.entry_price, s.symbol)} · Wyjście: ${f.price(s.result_price || s.entry_price, s.symbol)}
+              </div>
+            </div>
+            <div style="text-align: right;">
+              <div style="font-family: var(--mono); font-weight: 800; font-size: 0.95rem; color: ${col}">${sign}${pnlUsdt.toFixed(2)} USDT</div>
+              <div style="font-size: 0.6rem; color: var(--text-3); margin-top: 2px;">${sign}${s.pnl_pct.toFixed(2)}% P&L</div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
   }
-  
-  // Posortuj od najnowszych
-  closedSignals.sort((a,b) => new Date(b.resolved_at || b.created_at) - new Date(a.resolved_at || a.created_at));
-  
-  feed.innerHTML = closedSignals.map(s => {
-    // 100 USDT position size, calculate PnL in USDT
-    const pnlUsdt = 100 * ((s.pnl_pct || 0) / 100);
-    const sign = pnlUsdt >= 0 ? '+' : '';
-    const col = pnlUsdt >= 0 ? 'var(--green-400)' : 'var(--red-400)';
-    const bgCol = pnlUsdt >= 0 ? 'rgba(0,192,115,0.06)' : 'rgba(255,101,101,0.06)';
-    const borderCol = pnlUsdt >= 0 ? 'rgba(0,192,115,0.12)' : 'rgba(255,101,101,0.12)';
-    
-    return `
-      <div style="background: ${bgCol}; border: 1px solid ${borderCol}; border-radius: 8px; padding: 0.85rem; display: flex; justify-content: space-between; align-items: center;">
-        <div>
-          <div style="font-weight: 700; font-size: 0.8rem; color: var(--text-1); display: flex; align-items: center; gap: 6px;">
-            <span style="color: ${col}">${s.direction}</span> ${s.symbol.replace('USDT','')}
-            <span style="font-size: 0.65rem; background: rgba(255,255,255,0.06); padding: 2px 6px; border-radius: 4px; color: var(--text-3); font-weight: normal;">${s.leverage}x</span>
-          </div>
-          <div style="font-size: 0.65rem; color: var(--text-3); margin-top: 4px;">
-            Wejście: ${s.entry_price.toFixed(2)} · Wyjście: ${(s.result_price || s.entry_price).toFixed(2)}
-          </div>
-        </div>
-        <div style="text-align: right;">
-          <div style="font-family: var(--mono); font-weight: 800; font-size: 0.95rem; color: ${col}">${sign}${pnlUsdt.toFixed(2)} USDT</div>
-          <div style="font-size: 0.6rem; color: var(--text-3); margin-top: 2px;">${sign}${s.pnl_pct.toFixed(2)}% P&L</div>
-        </div>
-      </div>
-    `;
-  }).join('');
+
+  // 2. Render do nowej tabeli transakcji (WIN, LOSS oraz PENDING / MONITORING)
+  if (tableBody) {
+    if (signalsList.length === 0) {
+      tableBody.innerHTML = `
+        <tr>
+          <td colspan="8" style="text-align: center; padding: 2rem; color: var(--text-3); opacity: 0.5;">Brak historii transakcji...</td>
+        </tr>
+      `;
+    } else {
+      // Sortujemy całą historię od najnowszych
+      const sortedAll = [...signalsList].sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
+      
+      tableBody.innerHTML = sortedAll.map(s => {
+        const timeStr = new Date(s.created_at).toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) + ' ' + new Date(s.created_at).toLocaleDateString('pl-PL', { month: '2-digit', day: '2-digit' });
+        const dirColor = s.direction === 'LONG' ? 'var(--green-400)' : 'var(--red-400)';
+        const positionUsdt = S.positionUsdt || 50;
+        
+        let pnlText = '–';
+        let pnlColor = 'var(--text-3)';
+        let statusBadge = '';
+        let closePriceText = '–';
+
+        if (s.status === 'WIN') {
+          const pnlVal = positionUsdt * ((s.pnl_pct || 0) / 100);
+          pnlText = `+${pnlVal.toFixed(2)} USDT (+${s.pnl_pct.toFixed(1)}%)`;
+          pnlColor = 'var(--green-400)';
+          statusBadge = '<span style="background:rgba(16,185,129,0.15); color:var(--green-400); font-size:0.68rem; padding:3px 8px; border-radius:4px; font-weight:700;">🟢 WYGRANA</span>';
+          closePriceText = f.price(s.result_price || s.tp_price, s.symbol);
+        } else if (s.status === 'LOSS') {
+          const pnlVal = positionUsdt * ((s.pnl_pct || 0) / 100);
+          pnlText = `${pnlVal.toFixed(2)} USDT (${s.pnl_pct.toFixed(1)}%)`;
+          pnlColor = 'var(--red-400)';
+          statusBadge = '<span style="background:rgba(239,68,68,0.15); color:var(--red-400); font-size:0.68rem; padding:3px 8px; border-radius:4px; font-weight:700;">🔴 PRZEGRANA</span>';
+          closePriceText = f.price(s.result_price || s.sl_price, s.symbol);
+        } else if (s.status === 'PENDING') {
+          statusBadge = '<span style="background:rgba(245,158,11,0.15); color:var(--gold); font-size:0.68rem; padding:3px 8px; border-radius:4px; font-weight:700;">⏳ AKTYWNA</span>';
+        } else if (s.status === 'MONITORING') {
+          statusBadge = '<span style="background:rgba(59,130,246,0.15); color:var(--blue-400); font-size:0.68rem; padding:3px 8px; border-radius:4px; font-weight:700;">🔍 ANALIZA</span>';
+        } else {
+          statusBadge = `<span style="background:rgba(255,255,255,0.08); color:var(--text-3); font-size:0.68rem; padding:3px 8px; border-radius:4px; font-weight:700;">${s.status}</span>`;
+        }
+
+        return `
+          <tr style="border-bottom: 1px solid rgba(255,255,255,0.04); hover:background:rgba(255,255,255,0.01);">
+            <td style="padding: 0.75rem 0.5rem; font-family: var(--mono); color: var(--text-3);">${timeStr}</td>
+            <td style="padding: 0.75rem 0.5rem; font-weight: 700; color: var(--text-1);">${s.symbol}</td>
+            <td style="padding: 0.75rem 0.5rem; text-align: center; font-weight: 700; color: ${dirColor};">${s.direction}</td>
+            <td style="padding: 0.75rem 0.5rem; text-align: center; font-family: var(--mono); color: var(--text-2);">${s.leverage}x</td>
+            <td style="padding: 0.75rem 0.5rem; text-align: right; font-family: var(--mono); font-weight: 600;">${f.price(s.entry_price, s.symbol)}</td>
+            <td style="padding: 0.75rem 0.5rem; text-align: right; font-family: var(--mono); font-weight: 600; color: var(--text-2);">${closePriceText}</td>
+            <td style="padding: 0.75rem 0.5rem; text-align: right; font-family: var(--mono); font-weight: 700; color: ${pnlColor}">${pnlText}</td>
+            <td style="padding: 0.75rem 0.5rem; text-align: center;">${statusBadge}</td>
+          </tr>
+        `;
+      }).join('');
+    }
+  }
+
+  // 3. Update summary badge w tabeli
+  if (summaryEl) {
+    const wins = closedSignals.filter(s => s.status === 'WIN').length;
+    const losses = closedSignals.filter(s => s.status === 'LOSS').length;
+    const total = wins + losses;
+    const wr = total > 0 ? ((wins / total) * 100).toFixed(0) : 0;
+    summaryEl.innerHTML = `Wygrane: <span style="color: var(--green-400); font-weight: 700;">${wins}</span> | Przegrane: <span style="color: var(--red-400); font-weight: 700;">${losses}</span> | Skuteczność: <span style="color: var(--accent); font-weight: 700;">${wr}%</span>`;
+  }
 }
 
 async function fetchMLStatus() {

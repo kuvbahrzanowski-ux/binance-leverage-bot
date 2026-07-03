@@ -34,8 +34,8 @@ DEFAULT_POSITION_USDT = float(os.getenv("DEFAULT_POSITION_USDT", "50.0"))
 RISK_PER_TRADE_PCT    = float(os.getenv("RISK_PER_TRADE_PCT", "5.0"))  # 5% salda na trade
 
 # ── Swing Trade – Dzienny Limit ──────────────────────────────
-MAX_DAILY_TRADES = int(os.getenv("MAX_DAILY_TRADES", "3"))   # Max 2-3 trade dziennie
-MIN_DAILY_TRADES = int(os.getenv("MIN_DAILY_TRADES", "2"))   # Minimum informacyjne
+MAX_DAILY_TRADES = int(os.getenv("MAX_DAILY_TRADES", "15"))   # Zwiększony limit (min 5 trades dziennie)
+MIN_DAILY_TRADES = int(os.getenv("MIN_DAILY_TRADES", "5"))    # Target min 5 trades dziennie
 
 # ── Swing Trade – Cele TP/SL ─────────────────────────────────
 # Przy 10x dźwigni: 25% ruch = 250% zysku z pozycji
@@ -50,18 +50,18 @@ HOST = os.getenv("HOST", "0.0.0.0")
 PORT = int(os.getenv("PORT", "8000"))
 
 # ── Stałe analizy ────────────────────────────────────────────
-SIGNAL_THRESHOLD          = 70   # Podniesiony próg dla swing trade (był 60)
-HIGH_CONFIDENCE_THRESHOLD = 85   # Wysoka pewność sygnału
-ANALYZE_INTERVAL_SEC      = 900  # Co 15 minut (1 cykl)
+SIGNAL_THRESHOLD          = 60   # Obniżony próg dla częstszych sygnałów (at least 5/day)
+HIGH_CONFIDENCE_THRESHOLD = 80   # Wysoka pewność sygnału
+ANALYZE_INTERVAL_SEC      = 180  # Analiza co 3 minuty dla ciągłego skanowania rynku
 AUTO_TRADE_COUNTDOWN_SEC  = 10   # Odliczanie przed zleceniem
 
-# ── Timeframy (Swing Trading: 1h fast, 4h medium, 1d macro) ─
+# ── Timeframy (Częstsze Tradingi: 15m fast, 1h medium, 4h macro) ─
 TIMEFRAMES = {
-    "fast":        "1h",    # Szybki: formacje swiecowe, RSI, MACD
-    "medium":      "4h",    # Sredni: EMA trend, BB
-    "macro":       "1d",    # Makro: glowny trend
+    "fast":        "15m",   # Szybki: 15m (RSI, MACD, świeczki)
+    "medium":      "1h",    # Średni: 1h
+    "macro":       "4h",    # Makro: 4h
     # Zachowane dla kompatybilnosci wstecznej
-    "entry":       "15m",
+    "entry":       "5m",
     "main":        "15m",
     "trend":       "1h",
 }

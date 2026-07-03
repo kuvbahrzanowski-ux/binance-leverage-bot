@@ -848,4 +848,45 @@ body::after {
   }
 }
 
+/* ─── Toggle Switch Styles ─────────────── */
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 38px;
+  height: 20px;
+}
+.switch input { 
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+.slider {
+  position: absolute;
+  cursor: pointer;
+  inset: 0;
+  background-color: rgba(255,255,255,0.08);
+  border: 1px solid var(--border);
+  transition: .3s;
+  border-radius: 20px;
+}
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 12px;
+  width: 12px;
+  left: 3px;
+  bottom: 3px;
+  background-color: var(--text-3);
+  transition: .3s;
+  border-radius: 50%;
+}
+input:checked + .slider {
+  background-color: rgba(16, 185, 129, 0.15);
+  border-color: rgba(16, 185, 129, 0.4);
+}
+input:checked + .slider:before {
+  transform: translateX(18px);
+  background-color: var(--green-400);
+}
+
 

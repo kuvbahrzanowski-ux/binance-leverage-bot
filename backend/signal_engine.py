@@ -319,9 +319,9 @@ def analyze_symbol(symbol: str, leverage: int = DEFAULT_LEVERAGE) -> Optional[di
     """
     try:
         # ── Pobierz swiecy ────────────────────────────────────
-        klines_1h = client.get_klines(symbol, "1h",  limit=200)
-        klines_4h = client.get_klines(symbol, "4h",  limit=100)
-        klines_1d = client.get_klines(symbol, "1d",  limit=50)
+        klines_1h = client.get_klines(symbol, "15m", limit=200)  # fast (15m)
+        klines_4h = client.get_klines(symbol, "1h",  limit=100)  # medium (1h)
+        klines_1d = client.get_klines(symbol, "4h",  limit=50)   # macro (4h)
 
         df_1h = compute_all(klines_to_df(klines_1h))
         df_4h = compute_all(klines_to_df(klines_4h))

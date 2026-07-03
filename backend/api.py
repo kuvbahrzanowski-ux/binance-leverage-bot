@@ -742,6 +742,8 @@ async def keep_alive():
 async def startup():
     try:
         init_db()
+        from ml_engine import ml_engine
+        ml_engine.retrain_model()
         # Analiza od razu przy starcie
         asyncio.create_task(run_analysis())
         # Harmonogram co 5 minut

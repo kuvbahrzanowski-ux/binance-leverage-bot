@@ -270,9 +270,15 @@
 
   <!-- ══ SWING TRADE STATUS BAR ══ -->
   <div id="swing-status-bar" class="swing-status-bar">
-    <div class="swing-stat">
-      <div class="swing-stat-label">Tryb</div>
-      <div class="swing-stat-val" id="mode-display">🔍 Analiza</div>
+    <div class="swing-stat" style="min-width: 170px;">
+      <div class="swing-stat-label">Sygnały Bota</div>
+      <div style="display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 2px; user-select: none;">
+        <label class="switch">
+          <input type="checkbox" id="signals-toggle" onchange="toggleSignals(this)">
+          <span class="slider round"></span>
+        </label>
+        <span id="signals-toggle-label" style="font-size: 0.72rem; font-weight: 700; color: var(--red-400);">WYŁĄCZONE</span>
+      </div>
     </div>
     <div class="swing-stat">
       <div class="swing-stat-label">Transakcje dziś</div>
@@ -745,7 +751,39 @@
           </div>
         </div>
       </div>
+    </div>
 
+    <!-- ══ TABELA TRANSAKCJI (Wygrane / Przegrane) ══ -->
+    <div class="glass" style="padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem; margin-top: 1.5rem; border-radius: 12px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+        <div class="sec-title" style="margin: 0; display: flex; align-items: center; gap: 8px;">
+          <span>📈</span> Tabela Wyników: Transakcje Wygrane / Przegrane
+        </div>
+        <div style="font-size: 0.72rem; color: var(--text-3); font-family: var(--mono); background: rgba(255,255,255,0.03); padding: 5px 12px; border-radius: 6px; border: 1px solid var(--border);" id="stats-summary-text">
+          Wygrane: <span style="color: var(--green-400); font-weight: 700;">0</span> | Przegrane: <span style="color: var(--red-400); font-weight: 700;">0</span> | Skuteczność: <span style="color: var(--accent); font-weight: 700;">0%</span>
+        </div>
+      </div>
+      <div style="overflow-x: auto; width: 100%;">
+        <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.8rem;">
+          <thead>
+            <tr style="border-bottom: 1px solid rgba(255,255,255,0.08); color: var(--text-3); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.7;">
+              <th style="padding: 0.75rem 0.5rem;">Czas otwarcia</th>
+              <th style="padding: 0.75rem 0.5rem;">Symbol</th>
+              <th style="padding: 0.75rem 0.5rem; text-align: center;">Kierunek</th>
+              <th style="padding: 0.75rem 0.5rem; text-align: center;">Dźwignia</th>
+              <th style="padding: 0.75rem 0.5rem; text-align: right;">Cena Wejścia</th>
+              <th style="padding: 0.75rem 0.5rem; text-align: right;">Cena Wyjścia</th>
+              <th style="padding: 0.75rem 0.5rem; text-align: right;">Wynik P&L</th>
+              <th style="padding: 0.75rem 0.5rem; text-align: center;">Status</th>
+            </tr>
+          </thead>
+          <tbody id="trades-table-body">
+            <tr>
+              <td colspan="8" style="text-align: center; padding: 2rem; color: var(--text-3); opacity: 0.5;">Pobieranie historii transakcji...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </div>
   </div>
 

@@ -155,6 +155,15 @@ class Tracker:
         session.commit()
         logger.info(f"Signal {sig.id} {sig.symbol} {status}  PnL: {sig.pnl_pct:.2f}%")
 
+        # Automatyczne ciągłe uczenie maszynowe (retrain on each resolution)
+        try:
+            from ml_engine import ml_engine
+            res = ml_engine.retrain_model()
+            if res.get("success"):
+                logger.info(f"🧠 [Auto-Learning] Zakończono automatyczne douczanie modelu ML. Dokładność: {res.get('accuracy', 0)*100:.1f}%")
+        except Exception as e:
+            logger.warning(f"Nie udało się automatycznie douczyć modelu ML: {e}")
+
     def get_daily_trade_count(self) -> int:
         """Zwraca liczbe transakcji (PENDING/WIN/LOSS) z biezacego dnia UTC."""
         today_start = datetime.now(timezone.utc).replace(
