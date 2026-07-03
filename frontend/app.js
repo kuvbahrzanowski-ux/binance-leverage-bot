@@ -46,10 +46,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
 /* ════════════════ TRADINGVIEW WIDGET ════════════════ */
 function initChart() {
+  if (typeof TradingView === 'undefined' || !TradingView.widget) {
+    // Wait for TradingView script to load
+    setTimeout(initChart, 100);
+    return;
+  }
+  
   const container = document.getElementById('chart-container');
   if (!container) return;
 
-  container.innerHTML = `<div id="tradingview-widget" style="width:100%; height:100%;"></div>`;
+  container.innerHTML = '';
 
   // Map interval to TradingView syntax
   let interval = "15";
@@ -72,7 +78,7 @@ function initChart() {
       "enable_publishing": false,
       "hide_side_toolbar": false, // Pokaż przybory do rysowania (pozycja długa/krótka)
       "allow_symbol_change": false,
-      "container_id": "tradingview-widget",
+      "container_id": "chart-container",
       "studies": [
         "RSI@tv-basicstudies",
         "MASimple@tv-basicstudies"
@@ -187,7 +193,6 @@ async function fetchInitData() {
     // 2. Portfel
     const wallet = await fetch(`${API}/api/wallet`).then(r => r.json());
     S.balance = wallet.availableBalance || wallet.balance || 1000.0;
-    document.getElementById('header-wallet-balance').textContent = S.balance.toFixed(2) + ' USDT';
 
     // 3. Statystyki dzienne (liczba tradów)
     const dt = await fetch(`${API}/api/daily_trades`).then(r => r.json());

@@ -21,9 +21,9 @@ if "db.qtfwkxmtrfchgmkxaduu.supabase.co" in DATABASE_URL:
     DATABASE_URL = "postgresql://postgres.qtfwkxmtrfchgmkxaduu:S95CVcjViCTfR7nk@aws-0-eu-west-3.pooler.supabase.com:6543/postgres"
 
 # ── Handel ───────────────────────────────────────────────────
-TRADING_MODE       = os.getenv("TRADING_MODE", "ANALYZE")   # ANALYZE | ANALYZE_AND_TRADE
-DEFAULT_LEVERAGE   = int(os.getenv("DEFAULT_LEVERAGE", "100"))
-MAX_LEVERAGE       = int(os.getenv("MAX_LEVERAGE", "100"))
+TRADING_MODE       = "ANALYZE"   # ANALYZE | ANALYZE_AND_TRADE (Wymuszone czyste ustawienie)
+DEFAULT_LEVERAGE   = 100         # Wymuszona dźwignia 100x
+MAX_LEVERAGE       = 100
 MAX_OPEN_POSITIONS = int(os.getenv("MAX_OPEN_POSITIONS", "2"))
 MAX_DAILY_LOSS_PCT = float(os.getenv("MAX_DAILY_LOSS_PCT", "10.0"))
 
