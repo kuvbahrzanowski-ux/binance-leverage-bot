@@ -90,14 +90,7 @@ function initChart() {
   }
 }
 
-function switchSymbol(sym) {
-  S.symbol = sym;
-  ['BTCUSDT', 'ETHUSDT', 'XRPUSDT'].forEach(s => {
-    const btn = document.getElementById(`sym-${s}`);
-    if (btn) btn.classList.toggle('active', s === sym);
-  });
-  initChart();
-}
+
 
 function switchTimeframe(tf) {
   S.tf = tf;
@@ -255,8 +248,8 @@ function renderSignalsFeed() {
   const feed = document.getElementById('signals-feed');
   if (!feed) return;
 
-  // Filtrujemy tylko PENDING / MONITORING jako aktywne feed
-  const activeSigs = S.signals.filter(s => s.status === 'PENDING' || s.status === 'MONITORING');
+  const btcSignals = S.signals.filter(s => s.symbol === 'BTCUSDT');
+  const activeSigs = btcSignals.filter(s => s.status === 'PENDING' || s.status === 'MONITORING');
 
   if (activeSigs.length === 0) {
     feed.innerHTML = '<div class="feed-empty">Brak aktywnych sygnałów. Trwa analiza rynku...</div>';
@@ -301,8 +294,10 @@ function renderTradesTable() {
   const badge = document.getElementById('table-summary-badge');
   if (!body) return;
 
+  const btcSignals = S.signals.filter(s => s.symbol === 'BTCUSDT');
+
   // Pokazujemy całą historię
-  if (S.signals.length === 0) {
+  if (btcSignals.length === 0) {
     body.innerHTML = `
       <tr>
         <td colspan="8" class="table-empty-row">Brak historii transakcji...</td>
@@ -312,7 +307,7 @@ function renderTradesTable() {
   }
 
   // Posortuj od najnowszych
-  const sorted = [...S.signals].sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
+  const sorted = [...btcSignals].sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
 
   body.innerHTML = sorted.map(s => {
     const timeStr = new Date(s.created_at).toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' }) + ' ' + new Date(s.created_at).toLocaleDateString('pl-PL', { month: '2-digit', day: '2-digit' });
@@ -359,7 +354,7 @@ function renderTradesTable() {
 
   // Update summary badge
   if (badge) {
-    const closed = S.signals.filter(s => s.status === 'WIN' || s.status === 'LOSS');
+    const closed = btcSignals.filter(s => s.status === 'WIN' || s.status === 'LOSS');
     const wins = closed.filter(s => s.status === 'WIN').length;
     const losses = closed.filter(s => s.status === 'LOSS').length;
     const total = wins + losses;

@@ -43,7 +43,7 @@ SWING_TP_PCT = float(os.getenv("SWING_TP_PCT", "2.5"))     # TP: +2.5% ruch ceny
 SWING_SL_PCT = float(os.getenv("SWING_SL_PCT", "0.8"))     # SL: -0.8% ruch ceny (80% na pozycji)
 
 # ── Symbole ──────────────────────────────────────────────────
-SYMBOLS = os.getenv("SYMBOLS", "BTCUSDT,ETHUSDT,XRPUSDT").split(",")
+SYMBOLS = ["BTCUSDT"]
 
 # ── Serwer ───────────────────────────────────────────────────
 HOST = os.getenv("HOST", "0.0.0.0")
