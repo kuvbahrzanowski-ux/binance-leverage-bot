@@ -628,6 +628,13 @@ body::after {
 }
 .btn-red-solid:hover { transform:translateY(-1px); box-shadow:0 6px 20px var(--red-glow); }
 
+.btn-green-solid {
+  background:linear-gradient(135deg, #059669, #10b981);
+  color:white; box-shadow:0 4px 14px rgba(16,185,129,0.3);
+}
+.btn-green-solid:hover { transform:translateY(-1px); box-shadow:0 6px 20px rgba(16,185,129,0.45); }
+
+
 .btn-ghost { background:transparent; color:var(--text-2); border:1px solid var(--border); }
 .btn-ghost:hover { border-color:var(--border-mid); color:var(--text-1); }
 

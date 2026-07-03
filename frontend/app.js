@@ -461,12 +461,15 @@ function updateChartDecorations() {
     const priceText = priceEl ? priceEl.textContent : '';
     const currentPrice = parseFloat(priceText.replace(/[^0-9.]/g, '')) || 1000;
 
+    const dir = S.testDirection || 'LONG';
+    const isLong = dir === 'LONG';
+
     activeSig = {
       symbol: S.chart.sym,
-      direction: 'LONG',
+      direction: dir,
       entry_price: currentPrice,
-      tp_price: currentPrice * 1.025,
-      sl_price: currentPrice * 0.992,
+      tp_price: isLong ? (currentPrice * 1.025) : (currentPrice * 0.975),
+      sl_price: isLong ? (currentPrice * 0.992) : (currentPrice * 1.008),
       leverage: 10,
       status: 'PENDING',
       potential_profit_pct: 250,
@@ -495,7 +498,7 @@ function updateChartDecorations() {
       lineWidth: 2,
       lineStyle: 0, // Solid
       axisLabelVisible: true,
-      title: `${activeSig.isTest ? '[TEST] ' : ''}Próg wyjścia LONG`,
+      title: `${activeSig.isTest ? '[TEST] ' : ''}Próg wyjścia (ZYSK / TP)`,
     });
 
     const slLine = candleSeries.createPriceLine({
@@ -504,7 +507,7 @@ function updateChartDecorations() {
       lineWidth: 2,
       lineStyle: 0, // Solid
       axisLabelVisible: true,
-      title: `${activeSig.isTest ? '[TEST] ' : ''}Próg wyjścia SHORT`,
+      title: `${activeSig.isTest ? '[TEST] ' : ''}Próg wyjścia (STRATA / SL)`,
     });
 
     activePriceLines.push(entryLine, tpLine, slLine);
@@ -1545,27 +1548,30 @@ function generateCandleSVG(open, close, high, low, direction, patternName) {
 
 let testPopupTimer = null;
 
-function triggerTestCandlePopup() {
+function triggerTestCandlePopup(direction = 'LONG') {
   clearTimeout(testPopupTimer);
   
   // Efekty wejścia
   SFX.highConf();
-  flash('green');
+  flash(direction === 'LONG' ? 'green' : 'red');
 
   // Aktywuj testowy stan na wykresie
   S.testActive = true;
+  S.testDirection = direction;
   updateChartDecorations();
 
   const modal = document.getElementById('signal-modal-ov');
   const candleContainer = document.getElementById('sig-modal-candle-container');
   
   if (modal && candleContainer) {
-    document.getElementById('sig-modal-icon').textContent = '🟢';
+    const isLong = direction === 'LONG';
+    document.getElementById('sig-modal-icon').textContent = isLong ? '🟢' : '🔴';
+    
     const ttl = document.getElementById('sig-modal-ttl');
-    ttl.textContent = `🚨 POP-UP TESTOWY (Zniknie za 10s)`;
-    ttl.style.color = 'var(--green-400)';
+    ttl.textContent = `🚨 POP-UP TESTOWY (${isLong ? 'LONG' : 'SHORT'})`;
+    ttl.style.color = isLong ? 'var(--green-400)' : 'var(--red-400)';
 
-    document.getElementById('sig-modal-pair').textContent = S.chart.sym + ' (TEST)';
+    document.getElementById('sig-modal-pair').textContent = S.chart.sym + ` (TEST ${direction})`;
     
     // Oblicz ceny dopasowane do bieżącej ceny wybranego krypto
     const priceEl = document.getElementById(`price-${S.chart.sym}`);
@@ -1573,57 +1579,77 @@ function triggerTestCandlePopup() {
     const currentPrice = parseFloat(priceText.replace(/[^0-9.]/g, '')) || 60000;
 
     const entryPriceStr = f.price(currentPrice, S.chart.sym);
-    const tpPriceStr = f.price(currentPrice * 1.025, S.chart.sym);
-    const slPriceStr = f.price(currentPrice * 0.992, S.chart.sym);
+    const tpPriceStr = f.price(isLong ? (currentPrice * 1.025) : (currentPrice * 0.975), S.chart.sym);
+    const slPriceStr = f.price(isLong ? (currentPrice * 0.992) : (currentPrice * 1.008), S.chart.sym);
 
     document.getElementById('sig-modal-entry').textContent = entryPriceStr;
     document.getElementById('sig-modal-tp').textContent = tpPriceStr;
     document.getElementById('sig-modal-sl').textContent = slPriceStr;
-
     document.getElementById('sig-modal-leverage').textContent = `Pozycja: $${S.positionUsdt || 50} USDT (10x dźwignia)`;
 
-    // Wygeneruj świeczkę Hammer
-    candleContainer.innerHTML = generateCandleSVG(currentPrice * 0.995, currentPrice, currentPrice * 1.002, currentPrice * 0.991, 'LONG', 'Hammer (Młot)');
+    // Wygeneruj świeczkę: dla LONG Hammer (bullish), dla SHORT Shooting Star (bearish)
+    if (isLong) {
+      candleContainer.innerHTML = generateCandleSVG(currentPrice * 0.995, currentPrice, currentPrice * 1.002, currentPrice * 0.991, 'LONG', 'Hammer (Młot)');
+    } else {
+      candleContainer.innerHTML = generateCandleSVG(currentPrice * 1.001, currentPrice, currentPrice * 1.009, currentPrice * 0.999, 'SHORT', 'Shooting Star');
+    }
 
     // Lista powodów
     const reasonsEl = document.getElementById('sig-modal-reasons');
     if (reasonsEl) {
-      reasonsEl.innerHTML = `
-        <div style="display:flex; align-items:flex-start; gap:6px;">
-          <span>🟩</span><span>[TEST] Wykryto formację Hammer (Młot) na 1h</span>
-        </div>
-        <div style="display:flex; align-items:flex-start; gap:6px;">
-          <span>🟩</span><span>[TEST] RSI w strefie wyprzedania dla ${S.chart.sym.replace('USDT', '')}</span>
-        </div>
-        <div style="display:flex; align-items:flex-start; gap:6px;">
-          <span>🟩</span><span>[TEST] Cena powyżej wsparcia dynamicznego EMA50</span>
-        </div>
-        <div style="display:flex; align-items:flex-start; gap:6px;">
-          <span>🟩</span><span>[TEST] Klasyfikator ML zatwierdził wejście (pewność: 94%)</span>
-        </div>
-      `;
+      if (isLong) {
+        reasonsEl.innerHTML = `
+          <div style="display:flex; align-items:flex-start; gap:6px;">
+            <span>🟩</span><span>[TEST] Wykryto formację Hammer (Młot) na 1h</span>
+          </div>
+          <div style="display:flex; align-items:flex-start; gap:6px;">
+            <span>🟩</span><span>[TEST] RSI w strefie wyprzedania dla ${S.chart.sym.replace('USDT', '')}</span>
+          </div>
+          <div style="display:flex; align-items:flex-start; gap:6px;">
+            <span>🟩</span><span>[TEST] Cena powyżej wsparcia dynamicznego EMA50</span>
+          </div>
+          <div style="display:flex; align-items:flex-start; gap:6px;">
+            <span>🟩</span><span>[TEST] Klasyfikator ML zatwierdził wejście (pewność: 94%)</span>
+          </div>
+        `;
+      } else {
+        reasonsEl.innerHTML = `
+          <div style="display:flex; align-items:flex-start; gap:6px;">
+            <span>🟥</span><span>[TEST] Wykryto formację Shooting Star (Spadająca Gwiazda) na 1h</span>
+          </div>
+          <div style="display:flex; align-items:flex-start; gap:6px;">
+            <span>🟥</span><span>[TEST] RSI w strefie wykupienia dla ${S.chart.sym.replace('USDT', '')}</span>
+          </div>
+          <div style="display:flex; align-items:flex-start; gap:6px;">
+            <span>🟥</span><span>[TEST] Cena poniżej oporu dynamicznego EMA50</span>
+          </div>
+          <div style="display:flex; align-items:flex-start; gap:6px;">
+            <span>🟥</span><span>[TEST] Klasyfikator ML zatwierdził wejście (pewność: 91%)</span>
+          </div>
+        `;
+      }
     }
 
     modal.classList.remove('hidden');
-    
-    // Zniknięcie po 10 sekundach
-    testPopupTimer = setTimeout(() => {
-      closeSignalModal();
-      toast('Test zakończony', 'Popup zamknął się automatycznie po 10 sekundach', 'info', 3000);
-    }, 10000);
   }
 }
 
 function closeSignalModal() {
   clearTimeout(testPopupTimer);
+  
+  // Ukryj samo okienko popup
   const modal = document.getElementById('signal-modal-ov');
   if (modal) modal.classList.add('hidden');
   
-  // Wyłącz stan testowy na wykresie
-  S.testActive = false;
-  updateChartDecorations();
+  toast('Podgląd na wykresie', 'Linie testowe znikną z wykresu za 10 sekund...', 'info', 3000);
+  
+  // Uruchom odliczanie 10 sekund dla samych linii i strzałki na wykresie
+  testPopupTimer = setTimeout(() => {
+    S.testActive = false;
+    updateChartDecorations();
+    toast('Test zakończony', 'Linie testowe na wykresie wygasły.', 'info', 2500);
+  }, 10000);
 }
-
 
 function closeDailyTradesModal() {
   const modal = document.getElementById('trades-modal-ov');
