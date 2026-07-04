@@ -329,16 +329,27 @@ async def ping():
 async def index():
     path = os.path.join(FRONTEND_DIR, "index.html")
     if os.path.exists(path):
-        return FileResponse(path)
+        return FileResponse(
+            path,
+            headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"}
+        )
     return {"status": "Binance Leverage Bot API running"}
 
 @app.get("/style.css")
 async def serve_css():
-    return FileResponse(os.path.join(FRONTEND_DIR, "style.css"), media_type="text/css")
+    return FileResponse(
+        os.path.join(FRONTEND_DIR, "style.css"),
+        media_type="text/css",
+        headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"}
+    )
 
 @app.get("/app.js")
 async def serve_js():
-    return FileResponse(os.path.join(FRONTEND_DIR, "app.js"), media_type="application/javascript")
+    return FileResponse(
+        os.path.join(FRONTEND_DIR, "app.js"),
+        media_type="application/javascript",
+        headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"}
+    )
 
 
 @app.get("/api/market/{symbol}")
