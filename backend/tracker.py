@@ -64,14 +64,37 @@ class Tracker:
         """
         Sprawdza PENDING sygnaly i aktualizuje status
         jezeli cena dotknela TP lub SL.
-        Swing trade: okno monitorowania = 7 dni.
+        Okres aktywnego monitorowania = 24 godziny.
         """
+        from config import SYMBOLS
         with get_session() as session:
-            # Swing trade: sprawdzaj przez 7 dni
-            cutoff = datetime.now(timezone.utc) - timedelta(days=7)
+            # 1. Automatycznie wygaś sygnały o nieobsługiwanych symbolach (np. ETH, XRP)
+            invalid_pending = session.query(Signal).filter(
+                Signal.status == "PENDING",
+                ~Signal.symbol.in_(SYMBOLS)
+            ).all()
+            for sig in invalid_pending:
+                sig.status = "EXPIRED"
+                logger.info(f"Anulowano nieobsługiwany sygnał PENDING {sig.id} dla {sig.symbol}")
+            if invalid_pending:
+                session.commit()
+
+            # 2. Automatycznie wygaś sygnały starsze niż 24 godziny
+            cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
+            old_pending = session.query(Signal).filter(
+                Signal.status == "PENDING",
+                Signal.created_at < cutoff
+            ).all()
+            for sig in old_pending:
+                sig.status = "EXPIRED"
+                logger.info(f"Wygaszono stary sygnał PENDING {sig.id} ({sig.symbol}) po 24h")
+            if old_pending:
+                session.commit()
+
+            # 3. Pobierz świeże, aktywne sygnały do analizy cenowej (tylko z ostatnich 24h)
             pending = session.query(Signal).filter(
                 Signal.status == "PENDING",
-                Signal.created_at >= cutoff,
+                Signal.created_at >= cutoff
             ).all()
 
             for sig in pending:
@@ -110,16 +133,6 @@ class Tracker:
 
                 except Exception as e:
                     logger.warning(f"Blad resolve sygnalu {sig.id}: {e}")
-
-
-            # Wygaszaj sygnaly starsze niz 7 dni
-            old = session.query(Signal).filter(
-                Signal.status == "PENDING",
-                Signal.created_at < cutoff,
-            ).all()
-            for sig in old:
-                sig.status = "EXPIRED"
-            session.commit()
 
     def _resolve_signal(self, session, sig: Signal, status: str, result_price: float):
         """Ustawia wynik sygnalu i aktualizuje wirtualny portfel."""
